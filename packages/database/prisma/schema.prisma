@@ -44,6 +44,7 @@ model Organization {
 
   branches  Branch[]
   users     User[]
+  workouts  Workout[] @relation("OrgWorkouts")
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -117,6 +118,7 @@ model User {
 
   memberProfile MemberProfile?
 
+  createdWorkouts   Workout[]         @relation("WorkoutCreator")
   programsAsClient  WorkoutProgram[]  @relation("ClientPrograms")
   programsAsTrainer WorkoutProgram[]  @relation("TrainerPrograms")
   workoutLogs       WorkoutLog[]      @relation("ClientLogs")
@@ -129,6 +131,13 @@ model User {
 
   @@index([organizationId])
   @@index([branchId])
+}
+
+enum WorkoutReviewStatus {
+  DRAFT
+  PENDING_REVIEW
+  APPROVED
+  REJECTED
 }
 
 enum ProgramStatus {
@@ -151,7 +160,7 @@ enum RecurrenceDay {
 model Workout {
   id           String   @id @default(cuid())
   name         String
-  slug         String   @unique
+  slug         String
   // CARDIO | STRENGTH | HIIT | FLEXIBILITY | MOBILITY | PLYOMETRICS | CORE
   category     String
   muscleGroups String[] @default([])
@@ -159,9 +168,19 @@ model Workout {
   // BEGINNER | INTERMEDIATE | ADVANCED
   difficulty   String
 
+  // Ownership — null means global (SUPER_ADMIN created)
+  organizationId String?
+  organization   Organization? @relation("OrgWorkouts", fields: [organizationId], references: [id])
+  createdById    String?
+  createdBy      User?         @relation("WorkoutCreator", fields: [createdById], references: [id])
+
+  // Review workflow (only applies to org-created workouts)
+  reviewStatus WorkoutReviewStatus @default(DRAFT)
+  reviewNotes  String?
+
   // Media
-  coverImageUrl String?   // hero / card cover
-  imageUrls     String[] @default([]) // technique demonstration (multiple)
+  coverImageUrl String?
+  imageUrls     String[] @default([])
   videoUrl      String?
   audioUrl      String?
 
@@ -171,8 +190,8 @@ model Workout {
   tips         String?
 
   // Metrics
-  sets            String? // "3-4"
-  reps            String? // "8-12" or "30 sec"
+  sets            String?
+  reps            String?
   restSeconds     Int?
   durationMinutes Int?
   caloriesPerHour Int?
@@ -184,8 +203,11 @@ model Workout {
 
   programs WorkoutProgram[]
 
+  @@index([slug])
   @@index([category])
   @@index([difficulty])
+  @@index([organizationId])
+  @@index([reviewStatus])
 }
 
 model MemberProfile {
