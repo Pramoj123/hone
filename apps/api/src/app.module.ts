@@ -8,6 +8,7 @@ import { BranchesModule } from './branches/branches.module';
 import { StaffModule } from './staff/staff.module';
 import { MembersModule } from './members/members.module';
 import { WorkoutsModule } from './workouts/workouts.module';
+import { GymWorkoutsModule } from './gym-workouts/gym-workouts.module';
 import { ProgramsModule } from './programs/programs.module';
 import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { AssessmentsModule } from './assessments/assessments.module';
@@ -23,6 +24,7 @@ import { AssessmentsModule } from './assessments/assessments.module';
     StaffModule,
     MembersModule,
     WorkoutsModule,
+    GymWorkoutsModule,
     ProgramsModule,
     WorkoutLogsModule,
     AssessmentsModule,

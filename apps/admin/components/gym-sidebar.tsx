@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, GitBranch, Users, UserCheck, LogOut } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, UserCheck, Dumbbell, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/use-current-user";
 
@@ -37,6 +37,12 @@ function buildNavItems(gymSlug: string): NavItem[] {
       href: `/${gymSlug}/members`,
       label: "Members",
       icon: Users,
+      roles: ["ORG_ADMIN", "BRANCH_MANAGER", "TRAINER", "SUPER_ADMIN"],
+    },
+    {
+      href: `/${gymSlug}/workouts`,
+      label: "Workouts",
+      icon: Dumbbell,
       roles: ["ORG_ADMIN", "BRANCH_MANAGER", "TRAINER", "SUPER_ADMIN"],
     },
   ];

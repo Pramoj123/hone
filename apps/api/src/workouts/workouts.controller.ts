@@ -16,6 +16,18 @@ import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@hone/database';
 import { PaginationDto } from '../common/pagination/pagination.dto';
+import { IsOptional, IsString } from 'class-validator';
+
+class WorkoutListDto extends PaginationDto {
+  @IsOptional() @IsString() category?: string;
+  @IsOptional() @IsString() difficulty?: string;
+  @IsOptional() @IsString() search?: string;
+  @IsOptional() @IsString() reviewStatus?: string;
+}
+
+class RejectDto {
+  @IsString() notes!: string;
+}
 
 @Controller('workouts')
 @UseGuards(JwtAuthGuard)
@@ -23,13 +35,14 @@ export class WorkoutsController {
   constructor(private readonly workouts: WorkoutsService) {}
 
   @Get()
-  findAll(
-    @Query() pagination: PaginationDto,
-    @Query('category') category?: string,
-    @Query('difficulty') difficulty?: string,
-    @Query('search') search?: string,
-  ) {
-    return this.workouts.findAll(pagination, category, difficulty, search);
+  findAll(@Query() query: WorkoutListDto) {
+    return this.workouts.findAll(
+      query,
+      query.category,
+      query.difficulty,
+      query.search,
+      query.reviewStatus,
+    );
   }
 
   @Get(':id')
@@ -56,5 +69,21 @@ export class WorkoutsController {
   @Roles(Role.SUPER_ADMIN)
   remove(@Param('id') id: string) {
     return this.workouts.remove(id);
+  }
+
+  // ── Review actions ───────────────────────────────────────────────────
+
+  @Post(':id/approve')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  approve(@Param('id') id: string) {
+    return this.workouts.approve(id);
+  }
+
+  @Post(':id/reject')
+  @UseGuards(RolesGuard)
+  @Roles(Role.SUPER_ADMIN)
+  reject(@Param('id') id: string, @Body() dto: RejectDto) {
+    return this.workouts.reject(id, dto.notes);
   }
 }

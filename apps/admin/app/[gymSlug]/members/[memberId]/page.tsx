@@ -2,6 +2,7 @@
 
 import { use, useState, useRef, KeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { ProgramsTab } from "./programs-tab";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -88,6 +89,7 @@ interface PageProps {
 
 export default function MemberDetailPage({ params }: PageProps): React.JSX.Element {
   const { gymSlug, memberId } = use(params);
+  const [activeTab, setActiveTab] = useState<"profile" | "programs">("profile");
   const [editingProfile, setEditingProfile] = useState(false);
   const queryClient = useQueryClient();
 
@@ -176,6 +178,27 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
         </div>
       </div>
 
+      {/* Tabs */}
+      <div className="flex gap-1 border-b border-border">
+        {(["profile", "programs"] as const).map((tab) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
+              activeTab === tab
+                ? "border-foreground text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
+          >
+            {tab}
+          </button>
+        ))}
+      </div>
+
+      {activeTab === "programs" ? (
+        <ProgramsTab gymSlug={gymSlug} memberId={memberId} />
+      ) : (
+      <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {/* Basic info */}
         <Card>
@@ -215,7 +238,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
         </Card>
       </div>
 
-      {/* Health Profile */}
+      {/* Health Profile — inside profile tab */}
       <Card>
         <CardHeader className="pb-3 flex flex-row items-center justify-between">
           <CardTitle className="text-sm">Health profile</CardTitle>
@@ -227,6 +250,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
         </CardHeader>
         <CardContent>
           {editingProfile ? (
+
             <Form {...form}>
               <form
                 onSubmit={form.handleSubmit((data) => profileMutation.mutate(data))}
@@ -435,6 +459,8 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
           )}
         </CardContent>
       </Card>
+      </>
+      )}
     </div>
   );
 }

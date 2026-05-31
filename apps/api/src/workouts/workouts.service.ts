@@ -1,9 +1,10 @@
 import {
   Injectable,
   ConflictException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
-import { prisma, type Workout } from '@hone/database';
+import { prisma, WorkoutReviewStatus, type Workout } from '@hone/database';
 import type { CreateWorkoutDto } from './dto/create-workout.dto';
 import { paginate } from '../common/pagination/paginate.helper';
 import type { PaginatedResult } from '../common/pagination/paginated-result.type';
@@ -16,15 +17,21 @@ export class WorkoutsService {
     category?: string,
     difficulty?: string,
     search?: string,
+    reviewStatus?: string,
   ): Promise<PaginatedResult<Workout>> {
     const where: Record<string, unknown> = { deletedAt: null };
     if (category) where.category = category;
     if (difficulty) where.difficulty = difficulty;
     if (search) where.name = { contains: search, mode: 'insensitive' };
+    if (reviewStatus) where.reviewStatus = reviewStatus as WorkoutReviewStatus;
 
     return paginate<Workout>(
       prisma.workout as Parameters<typeof paginate<Workout>>[0],
-      { where, orderBy: [{ category: 'asc' }, { name: 'asc' }] },
+      {
+        where,
+        orderBy: [{ category: 'asc' }, { name: 'asc' }],
+        include: { organization: { select: { id: true, name: true, slug: true } } },
+      },
       pagination,
     );
   }
@@ -32,14 +39,15 @@ export class WorkoutsService {
   async findOne(id: string): Promise<Workout> {
     const workout = await prisma.workout.findFirst({
       where: { id, deletedAt: null },
+      include: { organization: { select: { id: true, name: true, slug: true } } },
     });
     if (!workout) throw new NotFoundException('Workout not found');
     return workout;
   }
 
   async create(dto: CreateWorkoutDto): Promise<Workout> {
-    const existing = await prisma.workout.findUnique({
-      where: { slug: dto.slug },
+    const existing = await prisma.workout.findFirst({
+      where: { slug: dto.slug, organizationId: null },
     });
     if (existing) throw new ConflictException('Slug already in use');
 
@@ -64,6 +72,9 @@ export class WorkoutsService {
         durationMinutes: dto.durationMinutes,
         caloriesPerHour: dto.caloriesPerHour,
         isPublished: dto.isPublished ?? true,
+        // Global workout — no org, auto-approved
+        organizationId: null,
+        reviewStatus: WorkoutReviewStatus.APPROVED,
       },
     });
   }
@@ -73,7 +84,7 @@ export class WorkoutsService {
 
     if (dto.slug) {
       const conflict = await prisma.workout.findFirst({
-        where: { slug: dto.slug, NOT: { id } },
+        where: { slug: dto.slug, organizationId: null, NOT: { id } },
       });
       if (conflict) throw new ConflictException('Slug already in use');
     }
@@ -91,5 +102,35 @@ export class WorkoutsService {
       data: { deletedAt: new Date() },
     });
     return { ok: true };
+  }
+
+  // ── Review actions (SUPER_ADMIN only) ───────────────────────────────
+
+  async approve(id: string): Promise<Workout> {
+    const workout = await prisma.workout.findFirst({
+      where: { id, deletedAt: null, reviewStatus: WorkoutReviewStatus.PENDING_REVIEW },
+    });
+    if (!workout) throw new NotFoundException('Workout not found or not pending review');
+
+    return prisma.workout.update({
+      where: { id },
+      data: { reviewStatus: WorkoutReviewStatus.APPROVED, reviewNotes: null },
+      include: { organization: { select: { id: true, name: true, slug: true } } },
+    });
+  }
+
+  async reject(id: string, notes: string): Promise<Workout> {
+    const workout = await prisma.workout.findFirst({
+      where: { id, deletedAt: null, reviewStatus: WorkoutReviewStatus.PENDING_REVIEW },
+    });
+    if (!workout) throw new NotFoundException('Workout not found or not pending review');
+
+    if (!notes?.trim()) throw new ForbiddenException('Rejection notes are required');
+
+    return prisma.workout.update({
+      where: { id },
+      data: { reviewStatus: WorkoutReviewStatus.REJECTED, reviewNotes: notes },
+      include: { organization: { select: { id: true, name: true, slug: true } } },
+    });
   }
 }
