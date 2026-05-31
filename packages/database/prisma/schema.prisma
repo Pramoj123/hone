@@ -1,0 +1,311 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  SUPER_ADMIN
+  ORG_ADMIN
+  BRANCH_MANAGER
+  TRAINER
+  CLIENT
+}
+
+model Organization {
+  id          String  @id @default(cuid())
+  name        String
+  slug        String  @unique
+  description String?
+
+  // Location
+  address    String?
+  city       String?
+  state      String?
+  country    String?
+  postalCode String?
+
+  // Contact
+  phone       String?
+  publicEmail String?
+  website     String?
+
+  // Operational
+  timezone     String @default("UTC")
+  currency     String @default("USD")
+  openingHours String?
+
+  // Branding
+  logoUrl      String?
+  primaryColor String?
+
+  branches  Branch[]
+  users     User[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+}
+
+model Branch {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  name           String
+  isDefault      Boolean      @default(false)
+  timezone       String       @default("UTC")
+
+  // Location
+  address    String?
+  city       String?
+  state      String?
+  country    String?
+  postalCode String?
+
+  // Contact
+  phone String?
+  email String?
+
+  // Operational
+  openingHours String?
+  capacity     Int?
+  description  String?
+
+  users     User[]
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+}
+
+model User {
+  id             String        @id @default(cuid())
+  email          String        @unique
+  passwordHash   String
+  name           String
+  role           Role          @default(CLIENT)
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  branchId       String?
+  branch         Branch?       @relation(fields: [branchId], references: [id])
+
+  // Shared — all roles
+  phone       String?
+  photoUrl    String?
+  dateOfBirth DateTime?
+  gender      String?
+
+  // Staff only (BRANCH_MANAGER, TRAINER)
+  employeeId            String?
+  hireDate              DateTime?
+  emergencyContactName  String?
+  emergencyContactPhone String?
+
+  // Trainer only
+  bio             String?
+  specializations String[] @default([])
+  certifications  String[] @default([])
+
+  // Member only (CLIENT)
+  memberNumber String?
+  healthNotes  String?
+  fitnessGoals String?
+  referredBy   String?
+
+  memberProfile MemberProfile?
+
+  programsAsClient  WorkoutProgram[]  @relation("ClientPrograms")
+  programsAsTrainer WorkoutProgram[]  @relation("TrainerPrograms")
+  workoutLogs       WorkoutLog[]      @relation("ClientLogs")
+  assessmentsAsClient WeeklyAssessment[] @relation("ClientAssessments")
+  assessmentsAsTrainer WeeklyAssessment[] @relation("TrainerAssessments")
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@index([branchId])
+}
+
+enum ProgramStatus {
+  PENDING
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum RecurrenceDay {
+  MON
+  TUE
+  WED
+  THU
+  FRI
+  SAT
+  SUN
+}
+
+model Workout {
+  id           String   @id @default(cuid())
+  name         String
+  slug         String   @unique
+  // CARDIO | STRENGTH | HIIT | FLEXIBILITY | MOBILITY | PLYOMETRICS | CORE
+  category     String
+  muscleGroups String[] @default([])
+  equipment    String[] @default([])
+  // BEGINNER | INTERMEDIATE | ADVANCED
+  difficulty   String
+
+  // Media
+  coverImageUrl String?   // hero / card cover
+  imageUrls     String[] @default([]) // technique demonstration (multiple)
+  videoUrl      String?
+  audioUrl      String?
+
+  // Content
+  description  String?
+  instructions String?
+  tips         String?
+
+  // Metrics
+  sets            String? // "3-4"
+  reps            String? // "8-12" or "30 sec"
+  restSeconds     Int?
+  durationMinutes Int?
+  caloriesPerHour Int?
+
+  isPublished Boolean   @default(true)
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  deletedAt   DateTime?
+
+  programs WorkoutProgram[]
+
+  @@index([category])
+  @@index([difficulty])
+}
+
+model MemberProfile {
+  id     String @id @default(cuid())
+  userId String @unique
+  user   User   @relation(fields: [userId], references: [id])
+
+  // Physical stats
+  height    Float?
+  weight    Float?
+  bloodType String?
+
+  // Medical
+  medicalConditions  String[] @default([])
+  allergies          String[] @default([])
+  currentMedications String?
+  pastInjuries       String?
+  pastSurgeries      String?
+  physicianName      String?
+  physicianPhone     String?
+
+  // Legal
+  hasSignedWaiver Boolean   @default(false)
+  waiverSignedAt  DateTime?
+
+  // Fitness baseline
+  fitnessLevel String?
+  primaryGoal  String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model WorkoutProgram {
+  id String @id @default(cuid())
+
+  clientId  String
+  client    User    @relation("ClientPrograms", fields: [clientId], references: [id])
+  trainerId String
+  trainer   User    @relation("TrainerPrograms", fields: [trainerId], references: [id])
+  workoutId String
+  workout   Workout @relation(fields: [workoutId], references: [id])
+
+  // Target overrides — null means fall back to workout defaults
+  targetSets            String?
+  targetReps            String?
+  targetDurationMinutes Int?
+  targetWeightKg        Float?
+
+  // Scheduling
+  scheduledDate  DateTime?
+  isRecurring    Boolean        @default(false)
+  recurrenceDays RecurrenceDay[] @default([])
+
+  status ProgramStatus @default(PENDING)
+  notes  String?
+
+  logs WorkoutLog[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([clientId])
+  @@index([trainerId])
+  @@index([workoutId])
+  @@index([status])
+}
+
+model WorkoutLog {
+  id String @id @default(cuid())
+
+  programId String
+  program   WorkoutProgram @relation(fields: [programId], references: [id])
+  clientId  String
+  client    User   @relation("ClientLogs", fields: [clientId], references: [id])
+
+  actualSets            Int?
+  actualReps            String?
+  actualWeightKg        Float?
+  actualDurationMinutes Int?
+  rpe                   Int?
+
+  completedAt DateTime @default(now())
+  notes       String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([programId])
+  @@index([clientId])
+  @@index([completedAt])
+}
+
+model WeeklyAssessment {
+  id String @id @default(cuid())
+
+  clientId  String
+  client    User   @relation("ClientAssessments", fields: [clientId], references: [id])
+  trainerId String
+  trainer   User   @relation("TrainerAssessments", fields: [trainerId], references: [id])
+
+  weekNumber Int
+  year       Int
+
+  weightKg   Float?
+  bodyFatPct Float?
+  waistCm    Float?
+  chestCm    Float?
+  hipsCm     Float?
+
+  performanceNotes String?
+  goalsNextWeek    String?
+  overallRating    Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([clientId, weekNumber, year])
+  @@index([clientId])
+  @@index([trainerId])
+  @@index([year, weekNumber])
+}
