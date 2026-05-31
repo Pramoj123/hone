@@ -118,7 +118,7 @@ export default function AdminLoginPage(): React.JSX.Element {
 
         <p className="mt-4 text-center text-xs text-muted-foreground">
           Member?{" "}
-          <a href="http://localhost:3000" className="underline hover:text-foreground">
+          <a href={process.env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3000"} className="underline hover:text-foreground">
             Use the member portal
           </a>
         </p>

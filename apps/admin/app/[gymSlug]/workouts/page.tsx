@@ -4,6 +4,7 @@ import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { Plus, Search, Send, Clock, CheckCircle, XCircle, FileEdit } from "lucide-react";
+import { toast } from "sonner";
 import { authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -68,7 +69,11 @@ export default function GymWorkoutsPage({ params }: PageProps): React.JSX.Elemen
 
   const submitMutation = useMutation({
     mutationFn: (id: string) => authApi.post(`/gyms/${gymSlug}/workouts/${id}/submit`, {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["gym-workouts", gymSlug] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["gym-workouts", gymSlug] });
+      toast.success("Submitted for review — our team will approve it shortly");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   function handleSearchChange(value: string): void {

@@ -3,6 +3,7 @@
 import { use, useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 import Link from "next/link";
 import { authApi } from "@/lib/api";
 import { Button } from "@/components/ui/button";
@@ -89,7 +90,9 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
       queryClient.invalidateQueries({ queryKey: ["me-programs"] });
       setShowLog(false);
       setLogForm({ actualSets: "", actualReps: "", actualWeightKg: "", actualDurationMinutes: "", rpe: 0, notes: "" });
+      toast.success("Workout logged! Great work 💪");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   function submitLog(): void {

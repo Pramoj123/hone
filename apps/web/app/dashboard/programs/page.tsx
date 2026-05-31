@@ -3,12 +3,13 @@
 import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { authApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
 import {
   ChevronRight, Calendar, RotateCcw, CheckCircle2,
-  Clock, XCircle, Dumbbell,
+  Clock, XCircle, Dumbbell, Zap,
 } from "lucide-react";
 
 interface Program {
@@ -40,28 +41,39 @@ const CATEGORY_EMOJI: Record<string, string> = {
   FLEXIBILITY: "🧘", MOBILITY: "🔄", PLYOMETRICS: "💥",
 };
 
+const PAGE_SIZE = 10;
+
 export default function ProgramsPage(): React.JSX.Element {
   const router = useRouter();
   const [tab, setTab] = useState<"current" | "history">("current");
+  const [page, setPage] = useState(1);
 
   const currentStatuses = ["PENDING", "ACTIVE"];
   const historyStatuses = ["COMPLETED", "CANCELLED"];
 
-  const { data, isLoading } = useQuery<{ data: Program[]; meta: { total: number } }>({
-    queryKey: ["me-programs", tab],
+  const { data, isLoading } = useQuery<{ data: Program[]; meta: { total: number; totalPages: number } }>({
+    queryKey: ["me-programs", tab, page],
     queryFn: async () => {
       const statuses = tab === "current" ? currentStatuses : historyStatuses;
       const results = await Promise.all(
-        statuses.map((s) => authApi.get<{ data: Program[]; meta: { total: number } }>(`/me/programs?status=${s}&limit=50`))
+        statuses.map((s) =>
+          authApi.get<{ data: Program[]; meta: { total: number; totalPages: number } }>(
+            `/me/programs?status=${s}&limit=${PAGE_SIZE}&page=${page}`
+          )
+        )
       );
       return {
         data: results.flatMap((r) => r.data),
-        meta: { total: results.reduce((acc, r) => acc + r.meta.total, 0) },
+        meta: {
+          total: results.reduce((acc, r) => acc + r.meta.total, 0),
+          totalPages: Math.max(...results.map((r) => r.meta.totalPages)),
+        },
       };
     },
   });
 
   const programs = data?.data ?? [];
+  const totalPages = data?.meta.totalPages ?? 1;
 
   return (
     <div className="p-8 max-w-2xl space-y-6">
@@ -75,7 +87,7 @@ export default function ProgramsPage(): React.JSX.Element {
         {(["current", "history"] as const).map((t) => (
           <button
             key={t}
-            onClick={() => setTab(t)}
+            onClick={() => { setTab(t); setPage(1); }}
             className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
               tab === t ? "border-primary text-foreground" : "border-transparent text-muted-foreground hover:text-foreground"
             }`}
@@ -133,10 +145,14 @@ export default function ProgramsPage(): React.JSX.Element {
                         <RotateCcw className="h-3 w-3" />
                         {p.recurrenceDays.join(", ")}
                       </span>
-                    ) : p.scheduledDate && (
+                    ) : p.scheduledDate ? (
                       <span className="flex items-center gap-1">
                         <Calendar className="h-3 w-3" />
                         {new Date(p.scheduledDate).toLocaleDateString("en-GB", { day: "numeric", month: "short" })}
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 italic">
+                        <Zap className="h-3 w-3" /> On-demand
                       </span>
                     )}
                     {p._count.logs > 0 && (
@@ -150,6 +166,19 @@ export default function ProgramsPage(): React.JSX.Element {
               </button>
             );
           })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {!isLoading && totalPages > 1 && (
+        <div className="flex items-center justify-center gap-3">
+          <Button variant="outline" size="sm" disabled={page <= 1} onClick={() => setPage((p) => p - 1)}>
+            Previous
+          </Button>
+          <span className="text-sm text-muted-foreground">{page} / {totalPages}</span>
+          <Button variant="outline" size="sm" disabled={page >= totalPages} onClick={() => setPage((p) => p + 1)}>
+            Next
+          </Button>
         </div>
       )}
     </div>

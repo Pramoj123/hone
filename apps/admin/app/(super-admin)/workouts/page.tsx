@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useRouter } from "next/navigation";
 import { Plus, Video, Volume2, Image, Search, CheckCircle, XCircle } from "lucide-react";
 import { authApi } from "@/lib/api";
@@ -83,7 +84,11 @@ export default function WorkoutsPage(): React.JSX.Element {
 
   const approveMutation = useMutation({
     mutationFn: (id: string) => authApi.post(`/workouts/${id}/approve`, {}),
-    onSuccess: () => queryClient.invalidateQueries({ queryKey: ["workouts"] }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["workouts"] });
+      toast.success("Workout approved and published globally");
+    },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const rejectMutation = useMutation({
@@ -93,7 +98,9 @@ export default function WorkoutsPage(): React.JSX.Element {
       queryClient.invalidateQueries({ queryKey: ["workouts"] });
       setRejectTarget(null);
       setRejectNotes("");
+      toast.success("Workout rejected — gym notified");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   function handleSearchChange(value: string): void {

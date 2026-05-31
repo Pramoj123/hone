@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { toast } from "sonner";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -63,7 +64,9 @@ export default function SettingsPage(): React.JSX.Element {
       queryClient.invalidateQueries({ queryKey: ["me-profile"] });
       setProfileSaved(true);
       setTimeout(() => setProfileSaved(false), 2500);
+      toast.success("Profile updated");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   const passwordMutation = useMutation({
@@ -73,7 +76,9 @@ export default function SettingsPage(): React.JSX.Element {
       passwordForm.reset();
       setPasswordSaved(true);
       setTimeout(() => setPasswordSaved(false), 2500);
+      toast.success("Password updated successfully");
     },
+    onError: (err: Error) => toast.error(err.message),
   });
 
   if (isLoading) {
@@ -108,7 +113,9 @@ export default function SettingsPage(): React.JSX.Element {
 
             <div>
               <label className="text-xs text-muted-foreground block mb-1.5">Email</label>
-              <Input value={me?.email ?? ""} disabled className="opacity-50 cursor-not-allowed" />
+              <div className="flex h-10 items-center rounded-md border border-border bg-muted/30 px-3 text-sm text-muted-foreground">
+                {me?.email ?? "—"}
+              </div>
               <p className="text-xs text-muted-foreground mt-1">Contact your trainer to update your email.</p>
             </div>
 

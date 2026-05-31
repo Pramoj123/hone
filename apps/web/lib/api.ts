@@ -15,6 +15,10 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     headers: { "Content-Type": "application/json", ...optHeaders },
     ...rest,
   });
+  if (res.status === 401 && typeof window !== "undefined") {
+    window.location.href = "/login";
+    throw new Error("Session expired. Please sign in again.");
+  }
   const data = (await res.json()) as T | ApiErrorBody;
   if (!res.ok) throw new Error(parseError(data as ApiErrorBody));
   return data as T;
