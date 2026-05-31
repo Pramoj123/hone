@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import { prisma } from '@hone/database';
@@ -46,6 +46,29 @@ export class AuthService {
 
   refresh(userId: string, email: string, role: string, gymSlug: string | null = null): AuthTokens {
     return this.issueTokens(userId, email, role, gymSlug);
+  }
+
+  async updateMe(userId: string, dto: { name?: string; phone?: string }) {
+    const data: Record<string, unknown> = {};
+    if (dto.name !== undefined) data.name = dto.name;
+    if (dto.phone !== undefined) data.phone = dto.phone || null;
+    return prisma.user.update({
+      where: { id: userId },
+      data,
+      select: { id: true, name: true, email: true, phone: true, role: true },
+    });
+  }
+
+  async updatePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user) throw new UnauthorizedException();
+
+    const valid = await bcrypt.compare(currentPassword, user.passwordHash);
+    if (!valid) throw new BadRequestException('Current password is incorrect');
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({ where: { id: userId }, data: { passwordHash } });
+    return { ok: true };
   }
 
   private issueTokens(sub: string, email: string, role: string, gymSlug: string | null): AuthTokens {
