@@ -100,7 +100,7 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
                 <FormItem>
                   <FormLabel>Name <Req /></FormLabel>
                   <FormControl>
-                    <Input placeholder="Barbell Back Squat" {...field} onChange={(e) => handleNameChange(e.target.value)} />
+                    <Input placeholder="Barbell Back Squat" {...field} onChange={(event) => handleNameChange(event.target.value)} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
@@ -120,7 +120,7 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
                   <FormLabel>Category <Req /></FormLabel>
                   <FormControl>
                     <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                      {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                      {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
                     </select>
                   </FormControl>
                   <FormMessage />
@@ -131,7 +131,7 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
                   <FormLabel>Difficulty <Req /></FormLabel>
                   <FormControl>
                     <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                      {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+                      {DIFFICULTIES.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
                     </select>
                   </FormControl>
                   <FormMessage />
@@ -240,30 +240,30 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
   );
 }
 
-function TagInput({ values, onChange, placeholder }: { values: string[]; onChange: (v: string[]) => void; placeholder?: string }): React.JSX.Element {
-  const ref = useRef<HTMLInputElement>(null);
-  function onKey(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const val = ref.current?.value.trim();
-    if (val && !values.includes(val)) onChange([...values, val]);
-    if (ref.current) ref.current.value = "";
+function TagInput({ values, onChange, placeholder }: { values: string[]; onChange: (values: string[]) => void; placeholder?: string }): React.JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = inputRef.current?.value.trim();
+    if (value && !values.includes(value)) onChange([...values, value]);
+    if (inputRef.current) inputRef.current.value = "";
   }
   return (
     <div className="space-y-2">
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md">
-              {v}
-              <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} className="text-muted-foreground hover:text-foreground">
+          {values.map((tagValue) => (
+            <span key={tagValue} className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md">
+              {tagValue}
+              <button type="button" onClick={() => onChange(values.filter((item) => item !== tagValue))} className="text-muted-foreground hover:text-foreground">
                 <X className="h-3 w-3" />
               </button>
             </span>
           ))}
         </div>
       )}
-      <Input ref={ref} placeholder={placeholder} onKeyDown={onKey} />
+      <Input ref={inputRef} placeholder={placeholder} onKeyDown={handleKeyDown} />
     </div>
   );
 }

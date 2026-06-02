@@ -1,5 +1,14 @@
-import { Controller, Get, Param, Query, UseGuards } from '@nestjs/common';
+import {
+  Controller,
+  Get,
+  Patch,
+  Body,
+  Param,
+  Query,
+  UseGuards,
+} from '@nestjs/common';
 import { AssessmentsService } from './assessments.service';
+import { SubmitAssessmentDto } from './dto/submit-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -15,12 +24,27 @@ export class MeAssessmentsController {
   constructor(private readonly assessments: AssessmentsService) {}
 
   @Get()
-  findAll(@CurrentUser() user: CurrentUserType, @Query() pagination: PaginationDto) {
+  findAll(
+    @CurrentUser() user: CurrentUserType,
+    @Query() pagination: PaginationDto,
+  ) {
     return this.assessments.findAllForClient(user.id, pagination);
   }
 
   @Get(':id')
-  findOne(@CurrentUser() user: CurrentUserType, @Param('id') id: string) {
+  findOne(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id') id: string,
+  ) {
     return this.assessments.findOneForClient(id, user.id);
+  }
+
+  @Patch(':id/submit')
+  submit(
+    @CurrentUser() user: CurrentUserType,
+    @Param('id') id: string,
+    @Body() dto: SubmitAssessmentDto,
+  ) {
+    return this.assessments.submit(id, user.id, dto);
   }
 }

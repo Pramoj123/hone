@@ -142,7 +142,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
     : null;
 
   return (
-    <div className="p-8 max-w-5xl space-y-6">
+    <div className="p-4 md:p-8 max-w-5xl space-y-6">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href={`/${gymSlug}/members`} className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -257,7 +257,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                 className="space-y-6"
               >
                 <Section title="Physical stats">
-                  <div className="grid grid-cols-3 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     <FormField control={form.control} name="height" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Height (cm)</FormLabel>
@@ -281,8 +281,8 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                             {...field}
                           >
                             <option value="">Select…</option>
-                            {BLOOD_TYPES.map((bt) => (
-                              <option key={bt} value={bt}>{bt}</option>
+                            {BLOOD_TYPES.map((bloodType) => (
+                              <option key={bloodType} value={bloodType}>{bloodType}</option>
                             ))}
                           </select>
                         </FormControl>
@@ -329,7 +329,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                       <FormMessage />
                     </FormItem>
                   )} />
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="pastInjuries" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Past injuries</FormLabel>
@@ -359,7 +359,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                       </FormItem>
                     )} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="physicianName" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Physician name</FormLabel>
@@ -378,7 +378,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                 </Section>
 
                 <Section title="Waiver & Fitness baseline">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="waiverSignedAt" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Waiver signed date</FormLabel>
@@ -393,14 +393,14 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                             type="checkbox"
                             className="h-4 w-4 mt-1"
                             checked={field.value ?? false}
-                            onChange={(e) => field.onChange(e.target.checked)}
+                            onChange={(event) => field.onChange(event.target.checked)}
                           />
                         </FormControl>
                         <FormLabel className="!mt-0">Waiver signed</FormLabel>
                       </FormItem>
                     )} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="fitnessLevel" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Fitness level</FormLabel>
@@ -410,8 +410,8 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                             {...field}
                           >
                             <option value="">Select…</option>
-                            {FITNESS_LEVELS.map((l) => (
-                              <option key={l} value={l}>{l}</option>
+                            {FITNESS_LEVELS.map((level) => (
+                              <option key={level} value={level}>{level}</option>
                             ))}
                           </select>
                         </FormControl>
@@ -427,8 +427,8 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
                             {...field}
                           >
                             <option value="">Select…</option>
-                            {PRIMARY_GOALS.map((g) => (
-                              <option key={g} value={g}>{g.replace(/_/g, " ")}</option>
+                            {PRIMARY_GOALS.map((goal) => (
+                              <option key={goal} value={goal}>{goal.replace(/_/g, " ")}</option>
                             ))}
                           </select>
                         </FormControl>
@@ -482,8 +482,8 @@ function ProfileView({ profile }: { profile: MemberProfile | null }): React.JSX.
       {profile.medicalConditions.length > 0 && (
         <ProfileRow label="Medical conditions">
           <div className="flex flex-wrap gap-1.5">
-            {profile.medicalConditions.map((c) => (
-              <Badge key={c} variant="outline" className="text-xs">{c}</Badge>
+            {profile.medicalConditions.map((condition) => (
+              <Badge key={condition} variant="outline" className="text-xs">{condition}</Badge>
             ))}
           </div>
         </ProfileRow>
@@ -491,8 +491,8 @@ function ProfileView({ profile }: { profile: MemberProfile | null }): React.JSX.
       {profile.allergies.length > 0 && (
         <ProfileRow label="Allergies">
           <div className="flex flex-wrap gap-1.5">
-            {profile.allergies.map((a) => (
-              <Badge key={a} variant="outline" className="text-xs text-red-700 border-red-200">{a}</Badge>
+            {profile.allergies.map((allergy) => (
+              <Badge key={allergy} variant="outline" className="text-xs text-red-700 border-red-200">{allergy}</Badge>
             ))}
           </div>
         </ProfileRow>
@@ -568,17 +568,17 @@ function TagInput({
   placeholder,
 }: {
   values: string[];
-  onChange: (v: string[]) => void;
+  onChange: (values: string[]) => void;
   placeholder?: string;
 }): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const val = inputRef.current?.value.trim();
-    if (val && !values.includes(val)) {
-      onChange([...values, val]);
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = inputRef.current?.value.trim();
+    if (value && !values.includes(value)) {
+      onChange([...values, value]);
     }
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -587,15 +587,15 @@ function TagInput({
     <div className="space-y-2">
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {values.map((v) => (
+          {values.map((tagValue) => (
             <span
-              key={v}
+              key={tagValue}
               className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md"
             >
-              {v}
+              {tagValue}
               <button
                 type="button"
-                onClick={() => onChange(values.filter((x) => x !== v))}
+                onClick={() => onChange(values.filter((item) => item !== tagValue))}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3 w-3" />
@@ -615,7 +615,7 @@ function TagInput({
 
 function MemberSkeleton({ gymSlug }: { gymSlug: string }): React.JSX.Element {
   return (
-    <div className="p-8 max-w-5xl space-y-6">
+    <div className="p-4 md:p-8 max-w-5xl space-y-6">
       <Skeleton className="h-4 w-32" />
       <div className="flex items-start gap-5">
         <Skeleton className="h-16 w-16 rounded-full shrink-0" />

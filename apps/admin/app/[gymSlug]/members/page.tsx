@@ -162,7 +162,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
   ];
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Members</h1>
@@ -182,6 +182,27 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
         isLoading={isLoading}
         emptyMessage="No members yet."
         onRowClick={(row) => router.push(`/${gymSlug}/members/${row.id}`)}
+        mobileCard={(row) => (
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
+              {row.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-foreground text-sm truncate">{row.name}</p>
+              <p className="text-xs text-muted-foreground truncate">{row.email}</p>
+            </div>
+            <div className="shrink-0 flex flex-col items-end gap-1">
+              {row.memberNumber && (
+                <span className="text-xs font-mono border border-border rounded px-1.5 py-0.5 text-muted-foreground">
+                  {row.memberNumber}
+                </span>
+              )}
+              <span className="text-xs text-muted-foreground">
+                {new Date(row.createdAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+              </span>
+            </div>
+          </div>
+        )}
       />
 
       {/* Add Member Dialog */}
@@ -201,7 +222,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
               <div className="overflow-y-auto flex-1 px-8 py-6 space-y-6">
 
                 <Section title="Account">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name <Req /></FormLabel>
@@ -217,7 +238,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
                       </FormItem>
                     )} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="password" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Temp password <Req /></FormLabel>
@@ -234,8 +255,8 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
                             {...field}
                           >
                             <option value="">Select branch…</option>
-                            {branches?.map((b) => (
-                              <option key={b.id} value={b.id}>{b.name}</option>
+                            {branches?.map((branch) => (
+                              <option key={branch.id} value={branch.id}>{branch.name}</option>
                             ))}
                           </select>
                         </FormControl>
@@ -246,7 +267,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
                 </Section>
 
                 <Section title="Personal">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="phone" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Phone</FormLabel>

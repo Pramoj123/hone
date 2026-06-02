@@ -22,6 +22,7 @@ interface DataTableProps<T> {
   emptyMessage?: string;
   onRowClick?: (row: T) => void;
   className?: string;
+  mobileCard?: (row: T) => React.ReactNode;
 }
 
 export function DataTable<T>({
@@ -33,8 +34,9 @@ export function DataTable<T>({
   emptyMessage = "No data found.",
   onRowClick,
   className,
+  mobileCard,
 }: DataTableProps<T>): React.JSX.Element {
-  return (
+  const tableEl = (
     <div className={cn("rounded-xl border border-border bg-card overflow-hidden", className)}>
       <Table>
         <TableHeader>
@@ -49,8 +51,8 @@ export function DataTable<T>({
 
         <TableBody>
           {isLoading ? (
-            Array.from({ length: loadingRows }).map((_, i) => (
-              <TableRow key={i}>
+            Array.from({ length: loadingRows }).map((_, index) => (
+              <TableRow key={index}>
                 {columns.map((col) => (
                   <TableCell key={col.key} className={col.className}>
                     <Skeleton className="h-4 w-full" />
@@ -85,5 +87,44 @@ export function DataTable<T>({
         </TableBody>
       </Table>
     </div>
+  );
+
+  if (!mobileCard) return tableEl;
+
+  return (
+    <>
+      {/* Mobile: card list */}
+      <div className="md:hidden">
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: loadingRows }).map((_, index) => (
+              <Skeleton key={index} className="h-20 rounded-xl" />
+            ))}
+          </div>
+        ) : data.length === 0 ? (
+          <p className="text-center py-12 text-muted-foreground text-sm">{emptyMessage}</p>
+        ) : (
+          <div className="space-y-2">
+            {data.map((row) => (
+              <div
+                key={keyExtractor(row)}
+                onClick={onRowClick ? () => onRowClick(row) : undefined}
+                className={cn(
+                  "rounded-xl border border-border bg-card p-4",
+                  onRowClick && "cursor-pointer active:bg-muted/50"
+                )}
+              >
+                {mobileCard(row)}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Desktop: table */}
+      <div className="hidden md:block">
+        {tableEl}
+      </div>
+    </>
   );
 }

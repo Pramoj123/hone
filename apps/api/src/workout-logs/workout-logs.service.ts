@@ -19,11 +19,7 @@ const LOG_INCLUDE = {
 
 @Injectable()
 export class WorkoutLogsService {
-  async createLog(
-    programId: string,
-    clientId: string,
-    dto: CreateWorkoutLogDto,
-  ) {
+  async createLog(programId: string, clientId: string, dto: CreateWorkoutLogDto): Promise<unknown> {
     // Verify the program belongs to this client
     const program = await prisma.workoutProgram.findFirst({
       where: { id: programId, clientId, deletedAt: null },
@@ -31,13 +27,24 @@ export class WorkoutLogsService {
     if (!program) throw new NotFoundException('Program not found');
 
     const log = await prisma.$transaction(async (tx) => {
+      // If sets array provided, compute aggregates from it
+      const doneSets = dto.sets?.filter((setItem) => setItem.completed) ?? [];
+      const computedSets = dto.sets ? doneSets.length : dto.actualSets;
+      const computedWeightKg =
+        dto.actualWeightKg !== undefined
+          ? dto.actualWeightKg
+          : doneSets.length
+          ? doneSets.reduce((acc, setItem) => acc + setItem.weightKg, 0) / doneSets.length
+          : undefined;
+
       const newLog = await tx.workoutLog.create({
         data: {
           programId,
           clientId,
-          actualSets: dto.actualSets,
+          sets: dto.sets ?? undefined,
+          actualSets: computedSets,
           actualReps: dto.actualReps,
-          actualWeightKg: dto.actualWeightKg,
+          actualWeightKg: computedWeightKg,
           actualDurationMinutes: dto.actualDurationMinutes,
           rpe: dto.rpe,
           completedAt: dto.completedAt ? new Date(dto.completedAt) : new Date(),
@@ -60,7 +67,7 @@ export class WorkoutLogsService {
     return log;
   }
 
-  async findLogsForClient(clientId: string, pagination: PaginationDto) {
+  async findLogsForClient(clientId: string, pagination: PaginationDto): Promise<unknown> {
     const { page = 1, limit = 20 } = pagination;
     const skip = (page - 1) * limit;
 
@@ -80,7 +87,7 @@ export class WorkoutLogsService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findOneForClient(id: string, clientId: string) {
+  async findOneForClient(id: string, clientId: string): Promise<unknown> {
     const log = await prisma.workoutLog.findFirst({
       where: { id, clientId },
       include: LOG_INCLUDE,
@@ -89,8 +96,8 @@ export class WorkoutLogsService {
     return log;
   }
 
-  async updateLog(id: string, clientId: string, dto: Partial<CreateWorkoutLogDto>) {
-    const log = await this.findOneForClient(id, clientId);
+  async updateLog(id: string, clientId: string, dto: Partial<CreateWorkoutLogDto>): Promise<unknown> {
+    const log = await this.findOneForClient(id, clientId) as any;
 
     const ageMs = Date.now() - log.createdAt.getTime();
     if (ageMs > 24 * 60 * 60 * 1000) {
@@ -116,7 +123,7 @@ export class WorkoutLogsService {
     organizationId: string,
     user: CurrentUserType,
     pagination: PaginationDto,
-  ) {
+  ): Promise<unknown> {
     // Verify member belongs to the org and caller's branch if scoped
     const member = await prisma.user.findFirst({
       where: {

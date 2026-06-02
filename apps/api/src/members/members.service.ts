@@ -7,6 +7,7 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import { prisma, Role } from '@hone/database';
+import { MailService } from '../mail/mail.service';
 import type { CreateMemberDto } from './dto/create-member.dto';
 import type { UpdateMemberProfileDto } from './dto/update-member-profile.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
@@ -35,6 +36,7 @@ const MEMBER_SELECT = {
 
 @Injectable()
 export class MembersService {
+  constructor(private mail: MailService) {}
   async findAll(organizationId: string, user: CurrentUserType) {
     // BRANCH_MANAGER and TRAINER see only their own branch
     const branchWhere =
@@ -89,6 +91,9 @@ export class MembersService {
         select: MEMBER_SELECT,
       });
       await tx.memberProfile.create({ data: { userId: member.id } });
+      return member;
+    }).then((member) => {
+      this.mail.sendWelcome(member.email, member.name).catch(() => null);
       return member;
     });
   }

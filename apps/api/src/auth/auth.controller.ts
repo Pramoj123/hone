@@ -1,5 +1,6 @@
 import { Controller, Post, Get, Patch, Body, UseGuards } from '@nestjs/common';
-import { IsOptional, IsString, MinLength } from 'class-validator';
+import { IsOptional, IsString, IsArray, IsNumber, MinLength } from 'class-validator';
+import { Type } from 'class-transformer';
 import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
@@ -10,6 +11,23 @@ import { CurrentUser, type CurrentUserType } from '../common/decorators/current-
 class UpdateMeDto {
   @IsOptional() @IsString() @MinLength(2) name?: string;
   @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() dateOfBirth?: string;
+  @IsOptional() @IsString() gender?: string;
+  @IsOptional() @IsString() fitnessGoals?: string;
+}
+
+class UpdateHealthProfileDto {
+  @IsOptional() @IsNumber() @Type(() => Number) height?: number;
+  @IsOptional() @IsNumber() @Type(() => Number) weight?: number;
+  @IsOptional() @IsString() bloodType?: string;
+  @IsOptional() @IsString() fitnessLevel?: string;
+  @IsOptional() @IsString() primaryGoal?: string;
+  @IsOptional() @IsArray() @IsString({ each: true }) medicalConditions?: string[];
+  @IsOptional() @IsArray() @IsString({ each: true }) allergies?: string[];
+  @IsOptional() @IsString() currentMedications?: string;
+  @IsOptional() @IsString() pastInjuries?: string;
+  @IsOptional() @IsString() physicianName?: string;
+  @IsOptional() @IsString() physicianPhone?: string;
 }
 
 class UpdatePasswordDto {
@@ -44,14 +62,20 @@ export class AuthController {
 
   @UseGuards(JwtAuthGuard)
   @Get('me')
-  me(@CurrentUser() user: CurrentUserType): CurrentUserType {
-    return user;
+  me(@CurrentUser() user: CurrentUserType) {
+    return this.auth.getMe(user.id);
   }
 
   @UseGuards(JwtAuthGuard)
   @Patch('me')
   updateMe(@CurrentUser() user: CurrentUserType, @Body() dto: UpdateMeDto) {
     return this.auth.updateMe(user.id, dto);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Patch('me/health-profile')
+  updateHealthProfile(@CurrentUser() user: CurrentUserType, @Body() dto: UpdateHealthProfileDto) {
+    return this.auth.updateHealthProfile(user.id, dto);
   }
 
   @UseGuards(JwtAuthGuard)

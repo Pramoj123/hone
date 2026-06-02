@@ -101,7 +101,7 @@ export default function BranchesPage({ params }: PageProps): React.JSX.Element {
   });
 
   return (
-    <div className="p-8 max-w-5xl">
+    <div className="p-4 md:p-8 max-w-5xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Branches</h1>
@@ -116,8 +116,8 @@ export default function BranchesPage({ params }: PageProps): React.JSX.Element {
 
       {isLoading ? (
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          {Array.from({ length: 4 }).map((_, i) => (
-            <Skeleton key={i} className="h-40 rounded-xl" />
+          {Array.from({ length: 4 }).map((_, index) => (
+            <Skeleton key={index} className="h-40 rounded-xl" />
           ))}
         </div>
       ) : (branches?.length ?? 0) === 0 ? (
@@ -172,7 +172,7 @@ export default function BranchesPage({ params }: PageProps): React.JSX.Element {
                   </FormItem>
                 )} />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField control={form.control} name="phone" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Phone</FormLabel>
@@ -197,7 +197,7 @@ export default function BranchesPage({ params }: PageProps): React.JSX.Element {
                   </FormItem>
                 )} />
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField control={form.control} name="city" render={({ field }) => (
                     <FormItem>
                       <FormLabel>City</FormLabel>
@@ -228,7 +228,7 @@ export default function BranchesPage({ params }: PageProps): React.JSX.Element {
                   )} />
                 </div>
 
-                <div className="grid grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <FormField control={form.control} name="openingHours" render={({ field }) => (
                     <FormItem>
                       <FormLabel>Opening hours</FormLabel>

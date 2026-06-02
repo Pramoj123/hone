@@ -5,6 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { prisma, Role, ProgramStatus } from '@hone/database';
+import { MailService } from '../mail/mail.service';
 import type { CreateProgramDto } from './dto/create-program.dto';
 import type { ListProgramsDto } from './dto/list-programs.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
@@ -18,8 +19,15 @@ const PROGRAM_INCLUDE = {
       category: true,
       difficulty: true,
       coverImageUrl: true,
+      muscleGroups: true,
+      equipment: true,
+      description: true,
+      instructions: true,
+      tips: true,
+      videoUrl: true,
       sets: true,
       reps: true,
+      restSeconds: true,
       durationMinutes: true,
     },
   },
@@ -34,6 +42,8 @@ const PROGRAM_INCLUDE = {
 
 @Injectable()
 export class ProgramsService {
+  constructor(private mail: MailService) {}
+
   private branchFilter(user: CurrentUserType) {
     if (
       (user.role === Role.TRAINER || user.role === Role.BRANCH_MANAGER) &&
@@ -44,7 +54,7 @@ export class ProgramsService {
     return {};
   }
 
-  async findAll(organizationId: string, user: CurrentUserType, query: ListProgramsDto) {
+  async findAll(organizationId: string, user: CurrentUserType, query: ListProgramsDto): Promise<unknown> {
     const { clientId, trainerId, status, page = 1, limit = 20 } = query;
 
     const where = {
@@ -74,7 +84,7 @@ export class ProgramsService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findOne(id: string, organizationId: string, user: CurrentUserType) {
+  async findOne(id: string, organizationId: string, user: CurrentUserType): Promise<unknown> {
     const program = await prisma.workoutProgram.findFirst({
       where: {
         id,
@@ -96,7 +106,7 @@ export class ProgramsService {
     return program;
   }
 
-  async create(organizationId: string, user: CurrentUserType, dto: CreateProgramDto) {
+  async create(organizationId: string, user: CurrentUserType, dto: CreateProgramDto): Promise<unknown> {
     const trainerId = dto.trainerId ?? user.id;
 
     // Validate workout exists and is published
@@ -145,7 +155,7 @@ export class ProgramsService {
       }
     }
 
-    return prisma.workoutProgram.create({
+    const program = await prisma.workoutProgram.create({
       data: {
         clientId: dto.clientId,
         trainerId,
@@ -162,6 +172,17 @@ export class ProgramsService {
       },
       include: PROGRAM_INCLUDE,
     });
+
+    this.mail.sendProgramAssigned({
+      clientEmail: program.client.email,
+      clientName: program.client.name,
+      trainerName: program.trainer?.name ?? 'Your trainer',
+      workoutName: program.workout.name,
+      scheduledDate: dto.scheduledDate,
+      notes: dto.notes,
+    }).catch(() => null);
+
+    return program;
   }
 
   async update(
@@ -169,8 +190,8 @@ export class ProgramsService {
     organizationId: string,
     user: CurrentUserType,
     dto: Partial<CreateProgramDto>,
-  ) {
-    const program = await this.findOne(id, organizationId, user);
+  ): Promise<unknown> {
+    const program = await this.findOne(id, organizationId, user) as any;
 
     // TRAINERs can only modify programs they created
     if (user.role === Role.TRAINER && program.trainerId !== user.id) {
@@ -195,8 +216,8 @@ export class ProgramsService {
     });
   }
 
-  async remove(id: string, organizationId: string, user: CurrentUserType) {
-    const program = await this.findOne(id, organizationId, user);
+  async remove(id: string, organizationId: string, user: CurrentUserType): Promise<unknown> {
+    const program = await this.findOne(id, organizationId, user) as any;
 
     if (user.role === Role.TRAINER && program.trainerId !== user.id) {
       throw new ForbiddenException('You can only delete programs you created');
@@ -211,7 +232,7 @@ export class ProgramsService {
 
   // ── Client-facing (me) ───────────────────────────────────────────────
 
-  async findForClient(clientId: string, query: ListProgramsDto) {
+  async findForClient(clientId: string, query: ListProgramsDto): Promise<unknown> {
     const { status, page = 1, limit = 20 } = query;
 
     const where = {
@@ -235,7 +256,7 @@ export class ProgramsService {
     return { data, meta: { total, page, limit, totalPages: Math.ceil(total / limit) } };
   }
 
-  async findOneForClient(id: string, clientId: string) {
+  async findOneForClient(id: string, clientId: string): Promise<unknown> {
     const program = await prisma.workoutProgram.findFirst({
       where: { id, clientId, deletedAt: null },
       include: {

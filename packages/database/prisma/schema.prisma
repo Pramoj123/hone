@@ -42,10 +42,12 @@ model Organization {
   logoUrl      String?
   primaryColor String?
 
-  branches  Branch[]
-  users     User[]
-  workouts  Workout[] @relation("OrgWorkouts")
-  createdAt DateTime  @default(now())
+  branches            Branch[]
+  users               User[]
+  workouts            Workout[]            @relation("OrgWorkouts")
+  assessmentTemplates AssessmentTemplate[] @relation("OrgTemplates")
+  assessments         Assessment[]         @relation("OrgAssessments")
+  createdAt           DateTime             @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 }
@@ -118,12 +120,15 @@ model User {
 
   memberProfile MemberProfile?
 
-  createdWorkouts   Workout[]         @relation("WorkoutCreator")
-  programsAsClient  WorkoutProgram[]  @relation("ClientPrograms")
-  programsAsTrainer WorkoutProgram[]  @relation("TrainerPrograms")
-  workoutLogs       WorkoutLog[]      @relation("ClientLogs")
-  assessmentsAsClient WeeklyAssessment[] @relation("ClientAssessments")
-  assessmentsAsTrainer WeeklyAssessment[] @relation("TrainerAssessments")
+  createdWorkouts      Workout[]            @relation("WorkoutCreator")
+  programsAsClient     WorkoutProgram[]     @relation("ClientPrograms")
+  programsAsTrainer    WorkoutProgram[]     @relation("TrainerPrograms")
+  workoutLogs          WorkoutLog[]         @relation("ClientLogs")
+  assessmentsAsClient  WeeklyAssessment[]   @relation("ClientAssessments")
+  assessmentsAsTrainer WeeklyAssessment[]   @relation("TrainerAssessments")
+  newAssessmentsAsClient  Assessment[]         @relation("AssessmentClient")
+  newAssessmentsAsTrainer Assessment[]         @relation("AssessmentTrainer")
+  createdTemplates     AssessmentTemplate[] @relation("TemplateCreator")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -147,6 +152,12 @@ enum ProgramStatus {
   CANCELLED
 }
 
+enum AssessmentStatus {
+  PENDING
+  SUBMITTED
+  REVIEWED
+}
+
 enum RecurrenceDay {
   MON
   TUE
@@ -160,7 +171,7 @@ enum RecurrenceDay {
 model Workout {
   id           String   @id @default(cuid())
   name         String
-  slug         String
+  slug         String   @unique
   // CARDIO | STRENGTH | HIIT | FLEXIBILITY | MOBILITY | PLYOMETRICS | CORE
   category     String
   muscleGroups String[] @default([])
@@ -285,6 +296,7 @@ model WorkoutLog {
   clientId  String
   client    User   @relation("ClientLogs", fields: [clientId], references: [id])
 
+  sets                  Json?   // [{setNumber, weightKg, reps, completed}]
   actualSets            Int?
   actualReps            String?
   actualWeightKg        Float?
@@ -302,6 +314,78 @@ model WorkoutLog {
   @@index([completedAt])
 }
 
+// ── Template-based assessment system ────────────────────────────────────────
+
+model AssessmentTemplate {
+  id String @id @default(cuid())
+
+  // null = global / system template; set = org-specific
+  organizationId String?
+  organization   Organization? @relation("OrgTemplates", fields: [organizationId], references: [id])
+
+  createdById String
+  createdBy   User   @relation("TemplateCreator", fields: [createdById], references: [id])
+
+  name        String
+  description String?
+  isActive    Boolean @default(true)
+
+  // Array of field definitions:
+  // [{ id, label, type: 'number'|'text'|'select'|'textarea', unit?, required, options? }]
+  fields Json
+
+  assessments Assessment[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([organizationId])
+  @@index([createdById])
+}
+
+model Assessment {
+  id String @id @default(cuid())
+
+  templateId String
+  template   AssessmentTemplate @relation(fields: [templateId], references: [id])
+
+  clientId String
+  client   User   @relation("AssessmentClient", fields: [clientId], references: [id])
+
+  trainerId String?
+  trainer   User?   @relation("AssessmentTrainer", fields: [trainerId], references: [id])
+
+  organizationId String
+  organization   Organization @relation("OrgAssessments", fields: [organizationId], references: [id])
+
+  // Key-value map of fieldId → value matching the template's fields array
+  responses Json @default("{}")
+
+  // Optional scheduling fields (used for weekly check-ins)
+  weekNumber    Int?
+  year          Int?
+  scheduledDate DateTime?
+
+  // null = not yet submitted by client
+  completedAt DateTime?
+
+  status        AssessmentStatus @default(PENDING)
+  trainerNotes  String?
+  overallRating Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([templateId])
+  @@index([clientId])
+  @@index([trainerId])
+  @@index([organizationId])
+  @@index([status])
+  @@index([year, weekNumber])
+}
+
+// @deprecated — replaced by Assessment + AssessmentTemplate above.
+// Kept for backward compatibility during data migration; do not use for new code.
 model WeeklyAssessment {
   id String @id @default(cuid())
 

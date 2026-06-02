@@ -2,18 +2,23 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, GitBranch, Users, UserCheck, Dumbbell, LogOut } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, UserCheck, Dumbbell, ClipboardList, LogOut } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/use-current-user";
 
-interface NavItem {
+export interface NavItem {
   href: string;
   label: string;
   icon: React.ElementType;
   roles: string[];
 }
 
-function buildNavItems(gymSlug: string): NavItem[] {
+export interface CurrentUser {
+  name: string;
+  role: string;
+}
+
+export function buildNavItems(gymSlug: string): NavItem[] {
   return [
     {
       href: `/${gymSlug}/dashboard`,
@@ -40,12 +45,79 @@ function buildNavItems(gymSlug: string): NavItem[] {
       roles: ["ORG_ADMIN", "BRANCH_MANAGER", "TRAINER", "SUPER_ADMIN"],
     },
     {
+      href: `/${gymSlug}/assessments`,
+      label: "Assessments",
+      icon: ClipboardList,
+      roles: ["ORG_ADMIN", "BRANCH_MANAGER", "TRAINER", "SUPER_ADMIN"],
+    },
+    {
       href: `/${gymSlug}/workouts`,
       label: "Workouts",
       icon: Dumbbell,
       roles: ["ORG_ADMIN", "BRANCH_MANAGER", "TRAINER", "SUPER_ADMIN"],
     },
   ];
+}
+
+export function GymNavItems({
+  navItems,
+  pathname,
+  onNavClick,
+}: {
+  navItems: NavItem[];
+  pathname: string;
+  onNavClick?: () => void;
+}): React.JSX.Element {
+  return (
+    <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
+      {navItems.map((item) => {
+        const Icon = item.icon;
+        const active = pathname.startsWith(item.href);
+        return (
+          <Link
+            key={item.href}
+            href={item.href}
+            onClick={onNavClick}
+            className={cn(
+              "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
+              active
+                ? "bg-primary text-primary-foreground"
+                : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
+            )}
+          >
+            <Icon className="h-4 w-4 shrink-0" />
+            {item.label}
+          </Link>
+        );
+      })}
+    </nav>
+  );
+}
+
+export function GymUserSection({
+  user,
+  onSignOut,
+}: {
+  user: CurrentUser | null | undefined;
+  onSignOut: () => void;
+}): React.JSX.Element {
+  return (
+    <div className="px-3 py-4 border-t border-border shrink-0 space-y-1">
+      {user && (
+        <div className="px-3 py-2 text-xs text-muted-foreground truncate">
+          <p className="font-medium text-foreground truncate">{user.name}</p>
+          <p className="truncate">{user.role.replace(/_/g, " ")}</p>
+        </div>
+      )}
+      <button
+        onClick={onSignOut}
+        className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
+      >
+        <LogOut className="h-4 w-4 shrink-0" />
+        Sign out
+      </button>
+    </div>
+  );
 }
 
 export function GymSidebar(): React.JSX.Element {
@@ -64,7 +136,7 @@ export function GymSidebar(): React.JSX.Element {
   }
 
   return (
-    <aside className="w-60 h-screen fixed left-0 top-0 bg-card border-r border-border flex flex-col z-10">
+    <aside className="w-60 h-screen fixed left-0 top-0 bg-card border-r border-border hidden md:flex flex-col z-10">
       {/* Brand */}
       <div className="px-6 py-5 border-b border-border shrink-0">
         <span className="text-xl font-bold tracking-tight text-foreground">
@@ -77,45 +149,8 @@ export function GymSidebar(): React.JSX.Element {
         )}
       </div>
 
-      {/* Navigation */}
-      <nav className="flex-1 px-3 py-4 space-y-0.5 overflow-y-auto">
-        {navItems.map((item) => {
-          const Icon = item.icon;
-          const active = pathname.startsWith(item.href);
-          return (
-            <Link
-              key={item.href}
-              href={item.href}
-              className={cn(
-                "flex items-center gap-3 px-3 py-2 rounded-lg text-sm font-medium transition-colors",
-                active
-                  ? "bg-primary text-primary-foreground"
-                  : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
-              )}
-            >
-              <Icon className="h-4 w-4 shrink-0" />
-              {item.label}
-            </Link>
-          );
-        })}
-      </nav>
-
-      {/* User + sign out */}
-      <div className="px-3 py-4 border-t border-border shrink-0 space-y-1">
-        {user && (
-          <div className="px-3 py-2 text-xs text-muted-foreground truncate">
-            <p className="font-medium text-foreground truncate">{user.name}</p>
-            <p className="truncate">{user.role.replace(/_/g, " ")}</p>
-          </div>
-        )}
-        <button
-          onClick={handleSignOut}
-          className="flex items-center gap-3 w-full px-3 py-2 rounded-lg text-sm font-medium text-muted-foreground hover:bg-accent hover:text-accent-foreground transition-colors"
-        >
-          <LogOut className="h-4 w-4 shrink-0" />
-          Sign out
-        </button>
-      </div>
+      <GymNavItems navItems={navItems} pathname={pathname} />
+      <GymUserSection user={user} onSignOut={handleSignOut} />
     </aside>
   );
 }

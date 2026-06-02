@@ -44,7 +44,7 @@ export default function GymDashboard({ params }: PageProps): React.JSX.Element {
   const recentMembers = members?.slice(0, 8) ?? [];
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
       <h1 className="text-2xl font-bold text-foreground">Dashboard</h1>
       <p className="text-sm text-muted-foreground mt-1">
         Overview for <span className="font-medium text-foreground">{gymSlug}</span>
@@ -102,22 +102,22 @@ export default function GymDashboard({ params }: PageProps): React.JSX.Element {
               </div>
             ) : (
               <div className="divide-y divide-border">
-                {recentMembers.map((m) => (
-                  <div key={m.id} className="flex items-center gap-4 px-5 py-3">
+                {recentMembers.map((member) => (
+                  <div key={member.id} className="flex items-center gap-4 px-5 py-3">
                     <div className="h-8 w-8 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
-                      {m.name.charAt(0).toUpperCase()}
+                      {member.name.charAt(0).toUpperCase()}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium text-foreground truncate">{m.name}</p>
-                      <p className="text-xs text-muted-foreground truncate">{m.email}</p>
+                      <p className="text-sm font-medium text-foreground truncate">{member.name}</p>
+                      <p className="text-xs text-muted-foreground truncate">{member.email}</p>
                     </div>
-                    {m.memberNumber && (
+                    {member.memberNumber && (
                       <Badge variant="outline" className="font-mono text-xs shrink-0">
-                        {m.memberNumber}
+                        {member.memberNumber}
                       </Badge>
                     )}
                     <span className="text-xs text-muted-foreground shrink-0">
-                      {new Date(m.createdAt).toLocaleDateString("en-GB", {
+                      {new Date(member.createdAt).toLocaleDateString("en-GB", {
                         day: "numeric",
                         month: "short",
                       })}

@@ -1,10 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useQuery } from "@tanstack/react-query";
 import { authApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
 
 interface Profile {
   id: string;
@@ -57,11 +59,16 @@ export default function ProfilePage(): React.JSX.Element {
     ? Math.floor((Date.now() - new Date(me.dateOfBirth).getTime()) / (365.25 * 24 * 60 * 60 * 1000))
     : null;
 
-  const mp = me.memberProfile;
+  const memberProfile = me.memberProfile;
 
   return (
-    <div className="p-8 max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+    <div className="p-4 md:p-8 max-w-2xl space-y-6">
+      <div className="flex items-center justify-between">
+        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+        <Button asChild variant="outline" size="sm">
+          <Link href="/dashboard/settings">Edit profile</Link>
+        </Button>
+      </div>
 
       {/* Identity */}
       <Card>
@@ -77,7 +84,7 @@ export default function ProfilePage(): React.JSX.Element {
                 {me.memberNumber && (
                   <Badge variant="outline" className="font-mono text-xs">{me.memberNumber}</Badge>
                 )}
-                {mp?.hasSignedWaiver && (
+                {memberProfile?.hasSignedWaiver && (
                   <Badge className="text-xs bg-green-900/30 text-green-400 border-green-900/40">Waiver signed</Badge>
                 )}
               </div>
@@ -100,50 +107,50 @@ export default function ProfilePage(): React.JSX.Element {
       </Card>
 
       {/* Health profile */}
-      {mp && (
+      {memberProfile && (
         <Card>
           <CardHeader><CardTitle>Health profile</CardTitle></CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <StatBlock label="Height" value={mp.height ? `${mp.height} cm` : null} />
-              <StatBlock label="Weight" value={mp.weight ? `${mp.weight} kg` : null} />
-              <StatBlock label="Blood type" value={mp.bloodType} />
-              <StatBlock label="Fitness level" value={mp.fitnessLevel} />
+              <StatBlock label="Height" value={memberProfile.height ? `${memberProfile.height} cm` : null} />
+              <StatBlock label="Weight" value={memberProfile.weight ? `${memberProfile.weight} kg` : null} />
+              <StatBlock label="Blood type" value={memberProfile.bloodType} />
+              <StatBlock label="Fitness level" value={memberProfile.fitnessLevel} />
             </div>
 
-            {mp.primaryGoal && (
-              <Row label="Primary goal" value={mp.primaryGoal.replace(/_/g, " ")} />
+            {memberProfile.primaryGoal && (
+              <Row label="Primary goal" value={memberProfile.primaryGoal.replace(/_/g, " ")} />
             )}
 
-            {mp.medicalConditions.length > 0 && (
+            {memberProfile.medicalConditions.length > 0 && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1.5">Medical conditions</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {mp.medicalConditions.map((c) => (
-                    <span key={c} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{c}</span>
+                  {memberProfile.medicalConditions.map((condition) => (
+                    <span key={condition} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{condition}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {mp.allergies.length > 0 && (
+            {memberProfile.allergies.length > 0 && (
               <div>
                 <p className="text-xs text-muted-foreground mb-1.5">Allergies</p>
                 <div className="flex flex-wrap gap-1.5">
-                  {mp.allergies.map((a) => (
-                    <span key={a} className="text-xs px-2 py-0.5 rounded-full bg-red-900/30 text-red-400 border border-red-900/40">{a}</span>
+                  {memberProfile.allergies.map((allergy) => (
+                    <span key={allergy} className="text-xs px-2 py-0.5 rounded-full bg-red-900/30 text-red-400 border border-red-900/40">{allergy}</span>
                   ))}
                 </div>
               </div>
             )}
 
-            {mp.currentMedications && <Row label="Medications" value={mp.currentMedications} />}
-            {mp.pastInjuries && <Row label="Past injuries" value={mp.pastInjuries} />}
+            {memberProfile.currentMedications && <Row label="Medications" value={memberProfile.currentMedications} />}
+            {memberProfile.pastInjuries && <Row label="Past injuries" value={memberProfile.pastInjuries} />}
 
-            {mp.physicianName && (
+            {memberProfile.physicianName && (
               <Row
                 label="Physician"
-                value={`${mp.physicianName}${mp.physicianPhone ? ` · ${mp.physicianPhone}` : ""}`}
+                value={`${memberProfile.physicianName}${memberProfile.physicianPhone ? ` · ${memberProfile.physicianPhone}` : ""}`}
               />
             )}
           </CardContent>

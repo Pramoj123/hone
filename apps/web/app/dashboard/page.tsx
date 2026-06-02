@@ -64,24 +64,24 @@ export default function DashboardPage(): React.JSX.Element {
   });
 
   const allActive = programs?.data ?? [];
-  const todayPrograms = allActive.filter((p) =>
-    p.isRecurring
-      ? p.recurrenceDays.includes(today)
-      : p.scheduledDate
-        ? new Date(p.scheduledDate).toDateString() === new Date().toDateString()
+  const todayPrograms = allActive.filter((program) =>
+    program.isRecurring
+      ? program.recurrenceDays.includes(today)
+      : program.scheduledDate
+        ? new Date(program.scheduledDate).toDateString() === new Date().toDateString()
         : false
   );
-  const upcomingPrograms = allActive.filter((p) => !todayPrograms.includes(p)).slice(0, 3);
+  const upcomingPrograms = allActive.filter((program) => !todayPrograms.includes(program)).slice(0, 3);
   const latestAssessment = assessments?.data[0];
 
   const hour = new Date().getHours();
   const greeting = hour < 12 ? "Good morning" : hour < 17 ? "Good afternoon" : "Good evening";
 
   return (
-    <div className="p-8 max-w-2xl space-y-8">
+    <div className="p-4 md:p-8 max-w-2xl space-y-8">
       {/* Greeting */}
       <div>
-        <h1 className="text-3xl font-bold text-foreground">
+        <h1 className="text-xl md:text-3xl font-bold text-foreground">
           {greeting},{" "}
           <span className="text-primary">{me?.name?.split(" ")[0] ?? "there"}</span>
         </h1>
@@ -109,8 +109,8 @@ export default function DashboardPage(): React.JSX.Element {
           </div>
         ) : (
           <div className="space-y-2">
-            {todayPrograms.map((p) => (
-              <ProgramCard key={p.id} program={p} onClick={() => router.push(`/dashboard/programs/${p.id}`)} />
+            {todayPrograms.map((program) => (
+              <ProgramCard key={program.id} program={program} onClick={() => router.push(`/dashboard/programs/${program.id}`)} />
             ))}
           </div>
         )}
@@ -123,8 +123,8 @@ export default function DashboardPage(): React.JSX.Element {
             Other active programs
           </h2>
           <div className="space-y-2">
-            {upcomingPrograms.map((p) => (
-              <ProgramCard key={p.id} program={p} onClick={() => router.push(`/dashboard/programs/${p.id}`)} />
+            {upcomingPrograms.map((program) => (
+              <ProgramCard key={program.id} program={program} onClick={() => router.push(`/dashboard/programs/${program.id}`)} />
             ))}
           </div>
         </section>

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Dumbbell, ClipboardList, User, Settings, LogOut } from "lucide-react";
+import { Home, Dumbbell, ClipboardList, User, Settings, LogOut, History } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { authApi } from "@/lib/api";
@@ -17,6 +17,7 @@ interface Me {
 const NAV = [
   { href: "/dashboard", label: "Home", icon: Home, exact: true },
   { href: "/dashboard/programs", label: "Programs", icon: Dumbbell },
+  { href: "/dashboard/logs", label: "Workout logs", icon: History },
   { href: "/dashboard/assessments", label: "Assessments", icon: ClipboardList },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },
@@ -37,7 +38,7 @@ export function MemberNav(): React.JSX.Element {
   }
 
   return (
-    <aside className="w-56 h-screen fixed left-0 top-0 flex flex-col bg-card border-r border-border z-10">
+    <aside className="w-56 h-screen fixed left-0 top-0 hidden md:flex flex-col bg-card border-r border-border z-10">
       {/* Brand */}
       <div className="px-6 py-5 border-b border-border shrink-0">
         <span className="text-xl font-bold tracking-tight text-foreground">

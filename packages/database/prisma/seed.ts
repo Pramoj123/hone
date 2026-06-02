@@ -680,13 +680,72 @@ async function main() {
     const coverImageUrl = IMAGES[w.slug] ?? null;
     await prisma.workout.upsert({
       where: { slug: w.slug },
-      update: { coverImageUrl },
-      create: { ...w, coverImageUrl },
+      update: { coverImageUrl, reviewStatus: 'APPROVED', isPublished: true },
+      create: { ...w, coverImageUrl, reviewStatus: 'APPROVED', isPublished: true },
     });
     workoutsCreated++;
   }
 
   console.log(`\n🏋️  ${workoutsCreated} workouts seeded (${[...new Set(workouts.map(w => w.category))].join(', ')})\n`);
+
+  // ── System Assessment Templates ───────────────────────────────────────────
+  // Seeded as global templates (organizationId: null). createdById uses superAdmin.
+  const superAdmin = await prisma.user.findUnique({ where: { email: 'superadmin@hone.fit' } });
+  if (!superAdmin) {
+    console.log('⚠️  superadmin@hone.fit not found — skipping assessment template seed');
+    return;
+  }
+
+  const weeklyCheckIn = await prisma.assessmentTemplate.upsert({
+    where: { id: 'seed-template-weekly-checkin' },
+    update: {},
+    create: {
+      id: 'seed-template-weekly-checkin',
+      organizationId: null,
+      createdById: superAdmin.id,
+      name: 'Weekly check-in',
+      description: 'Standard weekly progress check covering body metrics, energy, and sleep quality.',
+      isActive: true,
+      fields: [
+        { id: 'weight',       label: 'Weight',        type: 'number',   unit: 'kg',  required: false },
+        { id: 'bodyFat',      label: 'Body Fat',       type: 'number',   unit: '%',   required: false },
+        { id: 'waist',        label: 'Waist',          type: 'number',   unit: 'cm',  required: false },
+        { id: 'chest',        label: 'Chest',          type: 'number',   unit: 'cm',  required: false },
+        { id: 'hips',         label: 'Hips',           type: 'number',   unit: 'cm',  required: false },
+        { id: 'energyLevel',  label: 'Energy Level',   type: 'select',   required: false, options: ['Low', 'Medium', 'High'] },
+        { id: 'sleepQuality', label: 'Sleep Quality',  type: 'select',   required: false, options: ['Poor', 'Fair', 'Good', 'Excellent'] },
+        { id: 'notes',        label: 'Notes',          type: 'textarea', required: false },
+      ],
+    },
+  });
+
+  const initialFitness = await prisma.assessmentTemplate.upsert({
+    where: { id: 'seed-template-initial-fitness' },
+    update: {},
+    create: {
+      id: 'seed-template-initial-fitness',
+      organizationId: null,
+      createdById: superAdmin.id,
+      name: 'Initial fitness assessment',
+      description: 'Baseline fitness evaluation for new members covering physical metrics and goals.',
+      isActive: true,
+      fields: [
+        { id: 'weight',           label: 'Weight',            type: 'number',   unit: 'kg',   required: false },
+        { id: 'height',           label: 'Height',            type: 'number',   unit: 'cm',   required: false },
+        { id: 'restingHeartRate', label: 'Resting Heart Rate', type: 'number',  unit: 'bpm',  required: false },
+        { id: 'pushUps',          label: 'Push-ups',          type: 'number',   unit: 'reps', required: false },
+        { id: 'sitUps',           label: 'Sit-ups',           type: 'number',   unit: 'reps', required: false },
+        { id: 'flexibilityTest',  label: 'Flexibility Test',  type: 'select',   required: false,
+          options: ['Poor', 'Below Average', 'Average', 'Above Average', 'Excellent'] },
+        { id: 'fitnessGoals',     label: 'Fitness Goals',     type: 'textarea', required: false },
+        { id: 'medicalNotes',     label: 'Medical Notes',     type: 'textarea', required: false },
+      ],
+    },
+  });
+
+  console.log(`\n📋  Assessment templates seeded:`);
+  console.log(`    • ${weeklyCheckIn.name} (${(weeklyCheckIn.fields as any[]).length} fields)`);
+  console.log(`    • ${initialFitness.name} (${(initialFitness.fields as any[]).length} fields)\n`);
 }
 
 main()

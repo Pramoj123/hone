@@ -140,8 +140,8 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
       cell: (row) =>
         row.specializations.length > 0 ? (
           <div className="flex flex-wrap gap-1">
-            {row.specializations.slice(0, 2).map((s) => (
-              <Badge key={s} variant="outline" className="text-xs">{s}</Badge>
+            {row.specializations.slice(0, 2).map((spec) => (
+              <Badge key={spec} variant="outline" className="text-xs">{spec}</Badge>
             ))}
             {row.specializations.length > 2 && (
               <Badge variant="outline" className="text-xs">+{row.specializations.length - 2}</Badge>
@@ -171,7 +171,7 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
   ];
 
   return (
-    <div className="p-8 max-w-6xl">
+    <div className="p-4 md:p-8 max-w-6xl">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Staff</h1>
@@ -186,17 +186,17 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
 
       {/* Role filter tabs */}
       <div className="flex gap-2 mb-4">
-        {(["ALL", "TRAINER", "BRANCH_MANAGER"] as const).map((r) => (
+        {(["ALL", "TRAINER", "BRANCH_MANAGER"] as const).map((role) => (
           <button
-            key={r}
-            onClick={() => setRoleFilter(r)}
+            key={role}
+            onClick={() => setRoleFilter(role)}
             className={`px-3 py-1.5 rounded-lg text-sm font-medium transition-colors ${
-              roleFilter === r
+              roleFilter === role
                 ? "bg-foreground text-background"
                 : "text-muted-foreground hover:bg-accent"
             }`}
           >
-            {r === "ALL" ? "All" : r === "TRAINER" ? "Trainers" : "Managers"}
+            {role === "ALL" ? "All" : role === "TRAINER" ? "Trainers" : "Managers"}
           </button>
         ))}
       </div>
@@ -207,6 +207,25 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
         keyExtractor={(r) => r.id}
         isLoading={isLoading}
         emptyMessage="No staff members found."
+        mobileCard={(row) => (
+          <div className="flex items-center gap-3">
+            <div className="h-9 w-9 rounded-full bg-muted flex items-center justify-center text-xs font-semibold text-muted-foreground shrink-0">
+              {row.name.charAt(0).toUpperCase()}
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="font-medium text-foreground text-sm truncate">{row.name}</p>
+              <p className="text-xs text-muted-foreground truncate">{row.email}</p>
+            </div>
+            <div className="shrink-0 flex flex-col items-end gap-1">
+              <span className="inline-flex items-center text-xs font-medium px-2 py-0.5 rounded-full bg-primary/10 text-primary">
+                {row.role === "BRANCH_MANAGER" ? "Manager" : "Trainer"}
+              </span>
+              {row.employeeId && (
+                <span className="text-xs font-mono text-muted-foreground">{row.employeeId}</span>
+              )}
+            </div>
+          </div>
+        )}
       />
 
       {/* Add Staff Dialog */}
@@ -226,7 +245,7 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
               <div className="overflow-y-auto flex-1 px-8 py-6 space-y-6">
 
                 <Section title="Account">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="name" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Name <Req /></FormLabel>
@@ -242,7 +261,7 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
                       </FormItem>
                     )} />
                   </div>
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="password" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Temp password <Req /></FormLabel>
@@ -261,7 +280,7 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
                 </Section>
 
                 <Section title="Role & Assignment">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="role" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Role <Req /></FormLabel>
@@ -286,8 +305,8 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
                             {...field}
                           >
                             <option value="">Select branch…</option>
-                            {branches?.map((b) => (
-                              <option key={b.id} value={b.id}>{b.name}</option>
+                            {branches?.map((branch) => (
+                              <option key={branch.id} value={branch.id}>{branch.name}</option>
                             ))}
                           </select>
                         </FormControl>
@@ -339,7 +358,7 @@ export default function StaffPage({ params }: PageProps): React.JSX.Element {
                 )}
 
                 <Section title="Personal (optional)">
-                  <div className="grid grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <FormField control={form.control} name="dateOfBirth" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Date of birth</FormLabel>
@@ -426,17 +445,17 @@ function TagInput({
   placeholder,
 }: {
   values: string[];
-  onChange: (v: string[]) => void;
+  onChange: (values: string[]) => void;
   placeholder?: string;
 }): React.JSX.Element {
   const inputRef = useRef<HTMLInputElement>(null);
 
-  function handleKeyDown(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const val = inputRef.current?.value.trim();
-    if (val && !values.includes(val)) {
-      onChange([...values, val]);
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = inputRef.current?.value.trim();
+    if (value && !values.includes(value)) {
+      onChange([...values, value]);
     }
     if (inputRef.current) inputRef.current.value = "";
   }
@@ -445,15 +464,15 @@ function TagInput({
     <div className="space-y-2">
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {values.map((v) => (
+          {values.map((tagValue) => (
             <span
-              key={v}
+              key={tagValue}
               className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md"
             >
-              {v}
+              {tagValue}
               <button
                 type="button"
-                onClick={() => onChange(values.filter((x) => x !== v))}
+                onClick={() => onChange(values.filter((item) => item !== tagValue))}
                 className="text-muted-foreground hover:text-foreground"
               >
                 <X className="h-3 w-3" />

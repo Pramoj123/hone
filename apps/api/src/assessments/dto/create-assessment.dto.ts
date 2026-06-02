@@ -1,61 +1,34 @@
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsOptional, IsString, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateAssessmentDto {
+  @IsString()
+  templateId!: string;
+
+  @IsString()
+  clientId!: string;
+
+  @IsOptional()
+  @IsString()
+  trainerId?: string;
+
+  @IsOptional()
+  @IsString()
+  scheduledDate?: string;
+
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  @Max(53)
-  weekNumber!: number;
+  weekNumber?: number;
 
+  @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(2020)
-  year!: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  weightKg?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  @Max(100)
-  bodyFatPct?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  waistCm?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  chestCm?: number;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsNumber()
-  @Min(0)
-  hipsCm?: number;
+  year?: number;
 
   @IsOptional()
   @IsString()
-  performanceNotes?: string;
-
-  @IsOptional()
-  @IsString()
-  goalsNextWeek?: string;
-
-  @IsOptional()
-  @Type(() => Number)
-  @IsInt()
-  @Min(1)
-  @Max(5)
-  overallRating?: number;
+  trainerNotes?: string;
 }

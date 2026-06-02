@@ -1,7 +1,16 @@
-import { IsInt, IsNumber, IsOptional, IsString, Max, Min } from 'class-validator';
+import { IsInt, IsNumber, IsOptional, IsString, IsArray, Max, Min } from 'class-validator';
 import { Type } from 'class-transformer';
 
 export class CreateWorkoutLogDto {
+  @IsOptional()
+  @IsArray()
+  sets?: Array<{
+    setNumber: number;
+    weightKg: number;
+    reps: number;
+    completed: boolean;
+  }>;
+
   @IsOptional()
   @Type(() => Number)
   @IsInt()

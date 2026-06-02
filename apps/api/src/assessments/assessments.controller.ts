@@ -3,6 +3,7 @@ import {
   Get,
   Post,
   Patch,
+  Delete,
   Body,
   Param,
   Query,
@@ -12,13 +13,14 @@ import {
 import { Request } from 'express';
 import { AssessmentsService } from './assessments.service';
 import { CreateAssessmentDto } from './dto/create-assessment.dto';
+import { ListAssessmentsDto } from './dto/list-assessments.dto';
+import { ReviewAssessmentDto } from './dto/review-assessment.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrgScopeGuard } from '../common/guards/org-scope.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser } from '../common/decorators/current-user.decorator';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
-import { PaginationDto } from '../common/pagination/pagination.dto';
 import { Role, type Organization } from '@hone/database';
 
 interface OrgRequest extends Request {
@@ -27,7 +29,6 @@ interface OrgRequest extends Request {
 
 const STAFF_ROLES = [Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.TRAINER, Role.SUPER_ADMIN];
 
-// Top-level list: GET /gyms/:slug/assessments
 @Controller('gyms/:slug/assessments')
 @UseGuards(JwtAuthGuard, OrgScopeGuard, RolesGuard)
 export class AssessmentsController {
@@ -38,9 +39,19 @@ export class AssessmentsController {
   findAll(
     @Req() req: OrgRequest,
     @CurrentUser() user: CurrentUserType,
-    @Query() pagination: PaginationDto,
+    @Query() query: ListAssessmentsDto,
   ) {
-    return this.assessments.findAll(req.org.id, user, pagination);
+    return this.assessments.findAll(req.org.id, user, query);
+  }
+
+  @Post()
+  @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.TRAINER, Role.SUPER_ADMIN)
+  create(
+    @Req() req: OrgRequest,
+    @CurrentUser() user: CurrentUserType,
+    @Body() dto: CreateAssessmentDto,
+  ) {
+    return this.assessments.create(req.org.id, user, dto);
   }
 
   @Get(':id')
@@ -54,42 +65,22 @@ export class AssessmentsController {
   }
 
   @Patch(':id')
-  @Roles(...STAFF_ROLES)
-  update(
+  @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.TRAINER, Role.SUPER_ADMIN)
+  review(
     @Req() req: OrgRequest,
     @CurrentUser() user: CurrentUserType,
     @Param('id') id: string,
-    @Body() dto: Partial<CreateAssessmentDto>,
+    @Body() dto: ReviewAssessmentDto,
   ) {
-    return this.assessments.update(id, req.org.id, user, dto);
-  }
-}
-
-// Member-scoped: POST/GET /gyms/:slug/members/:memberId/assessments
-@Controller('gyms/:slug/members/:memberId/assessments')
-@UseGuards(JwtAuthGuard, OrgScopeGuard, RolesGuard)
-export class MemberAssessmentsController {
-  constructor(private readonly assessments: AssessmentsService) {}
-
-  @Post()
-  @Roles(...STAFF_ROLES)
-  upsert(
-    @Req() req: OrgRequest,
-    @CurrentUser() user: CurrentUserType,
-    @Param('memberId') memberId: string,
-    @Body() dto: CreateAssessmentDto,
-  ) {
-    return this.assessments.upsert(memberId, req.org.id, user, dto);
+    return this.assessments.review(id, req.org.id, user, dto);
   }
 
-  @Get()
-  @Roles(...STAFF_ROLES)
-  findAllForMember(
+  @Delete(':id')
+  @Roles(Role.ORG_ADMIN, Role.SUPER_ADMIN)
+  remove(
     @Req() req: OrgRequest,
-    @CurrentUser() user: CurrentUserType,
-    @Param('memberId') memberId: string,
-    @Query() pagination: PaginationDto,
+    @Param('id') id: string,
   ) {
-    return this.assessments.findAllForMember(memberId, req.org.id, user, pagination);
+    return this.assessments.remove(id, req.org.id);
   }
 }
