@@ -234,11 +234,11 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                   <CardHeader className="pb-3"><CardTitle className="text-sm">Demonstration images</CardTitle></CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-2 gap-2">
-                      {workout.imageUrls.map((url, i) => (
+                      {workout.imageUrls.map((url, index) => (
                         <div key={url} className="relative rounded-lg overflow-hidden border border-border bg-muted aspect-video">
-                          <img src={url} alt={`Step ${i + 1}`} className="h-full w-full object-cover" />
+                          <img src={url} alt={`Step ${index + 1}`} className="h-full w-full object-cover" />
                           <span className="absolute top-1.5 left-1.5 text-xs font-bold text-white bg-black/50 rounded px-1.5 py-0.5">
-                            {i + 1}
+                            {index + 1}
                           </span>
                         </div>
                       ))}
@@ -252,12 +252,12 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                   <CardHeader className="pb-3"><CardTitle className="text-sm">How to perform</CardTitle></CardHeader>
                   <CardContent>
                     <ol className="space-y-3">
-                      {steps.map((step, i) => {
+                      {steps.map((step, index) => {
                         const text = step.replace(/^\d+\.\s*/, "");
                         return (
-                          <li key={i} className="flex gap-3">
+                          <li key={index} className="flex gap-3">
                             <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">
-                              {i + 1}
+                              {index + 1}
                             </span>
                             <p className="text-sm text-foreground leading-relaxed pt-0.5">{text}</p>
                           </li>
@@ -342,8 +342,8 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                   <CardHeader className="pb-3"><CardTitle className="text-sm">Muscles targeted</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-1.5">
-                      {workout.muscleGroups.map((m) => (
-                        <Badge key={m} variant="secondary" className="text-xs">{m}</Badge>
+                      {workout.muscleGroups.map((muscle) => (
+                        <Badge key={muscle} variant="secondary" className="text-xs">{muscle}</Badge>
                       ))}
                     </div>
                   </CardContent>
@@ -355,8 +355,8 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                   <CardHeader className="pb-3"><CardTitle className="text-sm">Equipment</CardTitle></CardHeader>
                   <CardContent>
                     <div className="flex flex-wrap gap-1.5">
-                      {workout.equipment.map((e) => (
-                        <Badge key={e} variant="outline" className="text-xs">{e}</Badge>
+                      {workout.equipment.map((equipItem) => (
+                        <Badge key={equipItem} variant="outline" className="text-xs">{equipItem}</Badge>
                       ))}
                     </div>
                   </CardContent>
@@ -389,7 +389,7 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                     <FormLabel>Category</FormLabel>
                     <FormControl>
                       <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                        {CATEGORIES.map((c) => <option key={c} value={c}>{c}</option>)}
+                        {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -400,7 +400,7 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
                     <FormLabel>Difficulty</FormLabel>
                     <FormControl>
                       <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                        {DIFFICULTIES.map((d) => <option key={d} value={d}>{d}</option>)}
+                        {DIFFICULTIES.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
                       </select>
                     </FormControl>
                     <FormMessage />
@@ -409,7 +409,7 @@ export default function WorkoutDetailPage({ params }: PageProps): React.JSX.Elem
               </div>
               <FormField control={form.control} name="isPublished" render={({ field }) => (
                 <FormItem className="flex items-center gap-2">
-                  <FormControl><input type="checkbox" checked={field.value ?? true} onChange={(e) => field.onChange(e.target.checked)} className="h-4 w-4" /></FormControl>
+                  <FormControl><input type="checkbox" checked={field.value ?? true} onChange={(event) => field.onChange(event.target.checked)} className="h-4 w-4" /></FormControl>
                   <FormLabel className="!mt-0">Published</FormLabel>
                 </FormItem>
               )} />
@@ -526,30 +526,30 @@ function MetricRow({ label, value }: { label: string; value: string }): React.JS
   );
 }
 
-function TagInput({ values, onChange, placeholder }: { values: string[]; onChange: (v: string[]) => void; placeholder?: string }): React.JSX.Element {
-  const ref = useRef<HTMLInputElement>(null);
-  function onKey(e: KeyboardEvent<HTMLInputElement>): void {
-    if (e.key !== "Enter") return;
-    e.preventDefault();
-    const val = ref.current?.value.trim();
-    if (val && !values.includes(val)) onChange([...values, val]);
-    if (ref.current) ref.current.value = "";
+function TagInput({ values, onChange, placeholder }: { values: string[]; onChange: (values: string[]) => void; placeholder?: string }): React.JSX.Element {
+  const inputRef = useRef<HTMLInputElement>(null);
+  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>): void {
+    if (event.key !== "Enter") return;
+    event.preventDefault();
+    const value = inputRef.current?.value.trim();
+    if (value && !values.includes(value)) onChange([...values, value]);
+    if (inputRef.current) inputRef.current.value = "";
   }
   return (
     <div className="space-y-2">
       {values.length > 0 && (
         <div className="flex flex-wrap gap-1.5">
-          {values.map((v) => (
-            <span key={v} className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md">
-              {v}
-              <button type="button" onClick={() => onChange(values.filter((x) => x !== v))} className="text-muted-foreground hover:text-foreground">
+          {values.map((tagValue) => (
+            <span key={tagValue} className="inline-flex items-center gap-1 bg-muted text-foreground text-xs px-2 py-1 rounded-md">
+              {tagValue}
+              <button type="button" onClick={() => onChange(values.filter((item) => item !== tagValue))} className="text-muted-foreground hover:text-foreground">
                 <X className="h-3 w-3" />
               </button>
             </span>
           ))}
         </div>
       )}
-      <Input ref={ref} placeholder={placeholder} onKeyDown={onKey} />
+      <Input ref={inputRef} placeholder={placeholder} onKeyDown={handleKeyDown} />
     </div>
   );
 }

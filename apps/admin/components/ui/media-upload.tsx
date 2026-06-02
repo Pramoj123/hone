@@ -65,8 +65,8 @@ export function MediaUploadField({
         headers: { "Content-Type": file.type },
       });
       onChange(res.fileUrl);
-    } catch (e) {
-      setError((e as Error).message ?? "Upload failed");
+    } catch (error) {
+      setError((error as Error).message ?? "Upload failed");
     } finally {
       setUploading(false);
     }
@@ -125,8 +125,8 @@ export function MediaUploadField({
           type="file"
           accept={accept}
           className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
+          onChange={(event) => {
+            const file = event.target.files?.[0];
             if (file) handleFile(file);
           }}
         />
@@ -148,8 +148,8 @@ export function MediaUploadField({
         <Input
           placeholder="or paste URL"
           value={value}
-          onChange={(e) => {
-            onChange(e.target.value);
+          onChange={(event) => {
+            onChange(event.target.value);
             setError(null);
           }}
           className="flex-1 text-xs"

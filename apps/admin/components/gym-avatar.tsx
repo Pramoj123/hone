@@ -20,7 +20,7 @@ interface GymAvatarProps {
 export function GymAvatar({ name, logoUrl, primaryColor, size = "md", className }: GymAvatarProps): React.JSX.Element {
   const initials = name
     .split(" ")
-    .map((w) => w[0])
+    .map((word) => word[0])
     .join("")
     .toUpperCase()
     .slice(0, 2);

@@ -90,9 +90,9 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
   const { data: workoutResults } = useQuery<{ data: Workout[] }>({
     queryKey: ["workout-search", gymSlug, workoutSearch],
     queryFn: () => {
-      const p = new URLSearchParams({ scope: "all", limit: "20" });
-      if (workoutSearch) p.set("search", workoutSearch);
-      return authApi.get<{ data: Workout[] }>(`/gyms/${gymSlug}/workouts?${p}`);
+      const params = new URLSearchParams({ scope: "all", limit: "20" });
+      if (workoutSearch) params.set("search", workoutSearch);
+      return authApi.get<{ data: Workout[] }>(`/gyms/${gymSlug}/workouts?${params}`);
     },
     enabled: step === "search",
   });
@@ -110,7 +110,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
       toast.success("Program assigned successfully");
       handleClose();
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   const statusMutation = useMutation({
@@ -120,7 +120,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
       queryClient.invalidateQueries({ queryKey: ["programs", gymSlug, memberId] });
       toast.success("Status updated");
     },
-    onError: (err: Error) => toast.error(err.message),
+    onError: (error: Error) => toast.error(error.message),
   });
 
   function handleClose(): void {
@@ -159,7 +159,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
   }
 
   const list = programs?.data ?? [];
-  const trainers = (staffData?.data ?? []).filter((s) => s.role === "TRAINER" || s.role === "BRANCH_MANAGER");
+  const trainers = (staffData?.data ?? []).filter((staffMember) => staffMember.role === "TRAINER" || staffMember.role === "BRANCH_MANAGER");
 
   function scheduleLabel(p: Program): React.ReactNode {
     if (p.isRecurring) {
@@ -186,7 +186,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
       </div>
 
       {isLoading ? (
-        <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-16 rounded-xl" />)}</div>
+        <div className="space-y-2">{Array.from({ length: 3 }).map((_, index) => <Skeleton key={index} className="h-16 rounded-xl" />)}</div>
       ) : list.length === 0 ? (
         <div className="py-12 text-center border-2 border-dashed border-border rounded-xl text-muted-foreground text-sm">
           No programs assigned yet.
@@ -205,37 +205,37 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
               </tr>
             </thead>
             <tbody className="divide-y divide-border">
-              {list.map((p) => {
-                const cfg = STATUS_CONFIG[p.status];
+              {list.map((program) => {
+                const cfg = STATUS_CONFIG[program.status];
                 const Icon = cfg.Icon;
                 return (
-                  <tr key={p.id} className="hover:bg-muted/20">
+                  <tr key={program.id} className="hover:bg-muted/20">
                     <td className="px-4 py-3">
-                      <p className="font-medium text-foreground">{p.workout.name}</p>
-                      <p className="text-xs text-muted-foreground">{p.workout.category} · {p.workout.difficulty}</p>
+                      <p className="font-medium text-foreground">{program.workout.name}</p>
+                      <p className="text-xs text-muted-foreground">{program.workout.category} · {program.workout.difficulty}</p>
                     </td>
                     <td className="px-4 py-3">
                       <select
                         className="text-xs px-2 py-0.5 rounded-full font-medium border-0 bg-transparent cursor-pointer focus:outline-none focus:ring-1 focus:ring-ring"
-                        value={p.status}
+                        value={program.status}
                         disabled={statusMutation.isPending}
-                        onChange={(e) => statusMutation.mutate({ id: p.id, status: e.target.value })}
+                        onChange={(event) => statusMutation.mutate({ id: program.id, status: event.target.value })}
                         style={{ appearance: "none" }}
                       >
-                        {Object.entries(STATUS_CONFIG).map(([s, c]) => (
-                          <option key={s} value={s}>{c.label}</option>
+                        {Object.entries(STATUS_CONFIG).map(([statusKey, statusCfg]) => (
+                          <option key={statusKey} value={statusKey}>{statusCfg.label}</option>
                         ))}
                       </select>
                       <span className={`inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full font-medium pointer-events-none ml-1 ${cfg.className}`}>
                         <Icon className="h-3 w-3" /> {cfg.label}
                       </span>
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{scheduleLabel(p)}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{scheduleLabel(program)}</td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">
-                      {[p.targetSets && `${p.targetSets} sets`, p.targetReps && `${p.targetReps} reps`].filter(Boolean).join(" × ") || "—"}
+                      {[program.targetSets && `${program.targetSets} sets`, program.targetReps && `${program.targetReps} reps`].filter(Boolean).join(" × ") || "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{p.trainer.name}</td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{p._count.logs}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{program.trainer.name}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">{program._count.logs}</td>
                   </tr>
                 );
               })}
@@ -245,7 +245,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
       )}
 
       {/* Assign dialog */}
-      <Dialog open={open} onOpenChange={(v) => { if (!v) handleClose(); }}>
+      <Dialog open={open} onOpenChange={(isOpen) => { if (!isOpen) handleClose(); }}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>{step === "search" ? "Select a workout" : `Configure — ${selectedWorkout?.name}`}</DialogTitle>
@@ -255,14 +255,14 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
             <div className="space-y-3">
               <div className="relative">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input className="pl-9" placeholder="Search workouts…" value={workoutSearch} onChange={(e) => setWorkoutSearch(e.target.value)} autoFocus />
+                <Input className="pl-9" placeholder="Search workouts…" value={workoutSearch} onChange={(event) => setWorkoutSearch(event.target.value)} autoFocus />
               </div>
               <div className="max-h-72 overflow-y-auto space-y-1.5">
-                {(workoutResults?.data ?? []).map((w) => (
-                  <button key={w.id} onClick={() => { setSelectedWorkout(w); setStep("configure"); }}
+                {(workoutResults?.data ?? []).map((workout) => (
+                  <button key={workout.id} onClick={() => { setSelectedWorkout(workout); setStep("configure"); }}
                     className="w-full text-left px-3 py-2.5 rounded-lg border border-border hover:border-foreground/30 hover:bg-muted/30 transition-colors">
-                    <p className="font-medium text-foreground text-sm">{w.name}</p>
-                    <p className="text-xs text-muted-foreground mt-0.5">{w.category} · {w.difficulty}{w.sets ? ` · ${w.sets} sets` : ""}{w.reps ? ` · ${w.reps} reps` : ""}</p>
+                    <p className="font-medium text-foreground text-sm">{workout.name}</p>
+                    <p className="text-xs text-muted-foreground mt-0.5">{workout.category} · {workout.difficulty}{workout.sets ? ` · ${workout.sets} sets` : ""}{workout.reps ? ` · ${workout.reps} reps` : ""}</p>
                   </button>
                 ))}
                 {(workoutResults?.data ?? []).length === 0 && (
@@ -279,10 +279,10 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
                   <select
                     className="flex h-9 w-full rounded-md border border-border bg-input px-3 py-2 text-sm"
                     value={trainerId}
-                    onChange={(e) => setTrainerId(e.target.value)}
+                    onChange={(event) => setTrainerId(event.target.value)}
                   >
                     <option value="">Myself ({currentUser?.name})</option>
-                    {trainers.map((t) => <option key={t.id} value={t.id}>{t.name} ({t.role.replace("_", " ")})</option>)}
+                    {trainers.map((trainer) => <option key={trainer.id} value={trainer.id}>{trainer.name} ({trainer.role.replace("_", " ")})</option>)}
                   </select>
                 </div>
               )}
@@ -291,8 +291,8 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Initial status</label>
                 <select className="flex h-9 w-full rounded-md border border-border bg-input px-3 py-2 text-sm"
-                  value={form.status} onChange={(e) => setForm((f) => ({ ...f, status: e.target.value }))}>
-                  {Object.keys(STATUS_CONFIG).map((s) => <option key={s} value={s}>{STATUS_CONFIG[s].label}</option>)}
+                  value={form.status} onChange={(event) => setForm((prev) => ({ ...prev, status: event.target.value }))}>
+                  {Object.keys(STATUS_CONFIG).map((statusKey) => <option key={statusKey} value={statusKey}>{STATUS_CONFIG[statusKey].label}</option>)}
                 </select>
               </div>
 
@@ -300,19 +300,19 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
               <div className="grid grid-cols-2 gap-3">
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1.5">Target sets</label>
-                  <Input placeholder={selectedWorkout?.sets ?? "e.g. 3"} value={form.targetSets} onChange={(e) => setForm((f) => ({ ...f, targetSets: e.target.value }))} />
+                  <Input placeholder={selectedWorkout?.sets ?? "e.g. 3"} value={form.targetSets} onChange={(event) => setForm((prev) => ({ ...prev, targetSets: event.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1.5">Target reps</label>
-                  <Input placeholder={selectedWorkout?.reps ?? "e.g. 10-12"} value={form.targetReps} onChange={(e) => setForm((f) => ({ ...f, targetReps: e.target.value }))} />
+                  <Input placeholder={selectedWorkout?.reps ?? "e.g. 10-12"} value={form.targetReps} onChange={(event) => setForm((prev) => ({ ...prev, targetReps: event.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1.5">Weight (kg)</label>
-                  <Input type="number" placeholder="Optional" value={form.targetWeightKg} onChange={(e) => setForm((f) => ({ ...f, targetWeightKg: e.target.value }))} />
+                  <Input type="number" placeholder="Optional" value={form.targetWeightKg} onChange={(event) => setForm((prev) => ({ ...prev, targetWeightKg: event.target.value }))} />
                 </div>
                 <div>
                   <label className="text-xs font-medium text-muted-foreground block mb-1.5">Duration (min)</label>
-                  <Input type="number" placeholder={selectedWorkout?.durationMinutes?.toString() ?? "Optional"} value={form.targetDurationMinutes} onChange={(e) => setForm((f) => ({ ...f, targetDurationMinutes: e.target.value }))} />
+                  <Input type="number" placeholder={selectedWorkout?.durationMinutes?.toString() ?? "Optional"} value={form.targetDurationMinutes} onChange={(event) => setForm((prev) => ({ ...prev, targetDurationMinutes: event.target.value }))} />
                 </div>
               </div>
 
@@ -320,23 +320,23 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Schedule</label>
                 <div className="flex gap-2 mb-2 flex-wrap">
-                  {(["date", "recurring", "none"] as const).map((t) => (
-                    <button key={t} type="button" onClick={() => setScheduleType(t)}
-                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${scheduleType === t ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
-                      {t === "date" ? "Specific date" : t === "recurring" ? "Recurring" : "On-demand"}
+                  {(["date", "recurring", "none"] as const).map((schedType) => (
+                    <button key={schedType} type="button" onClick={() => setScheduleType(schedType)}
+                      className={`px-3 py-1 rounded-full text-xs font-medium transition-colors ${scheduleType === schedType ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                      {schedType === "date" ? "Specific date" : schedType === "recurring" ? "Recurring" : "On-demand"}
                     </button>
                   ))}
                 </div>
                 {scheduleType === "date" && (
-                  <Input type="date" value={form.scheduledDate} onChange={(e) => setForm((f) => ({ ...f, scheduledDate: e.target.value }))} />
+                  <Input type="date" value={form.scheduledDate} onChange={(event) => setForm((prev) => ({ ...prev, scheduledDate: event.target.value }))} />
                 )}
                 {scheduleType === "recurring" && (
                   <div className="flex flex-wrap gap-1.5">
-                    {DAYS.map((d) => (
-                      <button key={d} type="button"
-                        onClick={() => setForm((f) => ({ ...f, recurrenceDays: f.recurrenceDays.includes(d) ? f.recurrenceDays.filter((x) => x !== d) : [...f.recurrenceDays, d] }))}
-                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${form.recurrenceDays.includes(d) ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
-                        {d}
+                    {DAYS.map((day) => (
+                      <button key={day} type="button"
+                        onClick={() => setForm((prev) => ({ ...prev, recurrenceDays: prev.recurrenceDays.includes(day) ? prev.recurrenceDays.filter((item) => item !== day) : [...prev.recurrenceDays, day] }))}
+                        className={`px-2.5 py-1 rounded-md text-xs font-medium transition-colors ${form.recurrenceDays.includes(day) ? "bg-foreground text-background" : "bg-muted text-muted-foreground"}`}>
+                        {day}
                       </button>
                     ))}
                   </div>
@@ -350,7 +350,7 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
               <div>
                 <label className="text-xs font-medium text-muted-foreground block mb-1.5">Notes for client</label>
                 <textarea rows={2} className="flex w-full rounded-md border border-border bg-input px-3 py-2 text-sm resize-none"
-                  placeholder="Optional instructions or context…" value={form.notes} onChange={(e) => setForm((f) => ({ ...f, notes: e.target.value }))} />
+                  placeholder="Optional instructions or context…" value={form.notes} onChange={(event) => setForm((prev) => ({ ...prev, notes: event.target.value }))} />
               </div>
             </div>
           )}

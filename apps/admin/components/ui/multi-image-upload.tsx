@@ -35,8 +35,8 @@ export function MultiImageUpload({ values, onChange }: MultiImageUploadProps): R
         newUrls.push(res.fileUrl);
       }
       onChange([...values, ...newUrls]);
-    } catch (e) {
-      setError((e as Error).message ?? "Upload failed");
+    } catch (error) {
+      setError((error as Error).message ?? "Upload failed");
     } finally {
       setUploading(false);
       if (fileRef.current) fileRef.current.value = "";
@@ -51,7 +51,7 @@ export function MultiImageUpload({ values, onChange }: MultiImageUploadProps): R
   }
 
   function remove(url: string): void {
-    onChange(values.filter((u) => u !== url));
+    onChange(values.filter((imageUrl) => imageUrl !== url));
   }
 
   function move(from: number, to: number): void {
@@ -154,7 +154,7 @@ export function MultiImageUpload({ values, onChange }: MultiImageUploadProps): R
         <Input
           placeholder="Or paste image URL and press Add"
           value={pasteUrl}
-          onChange={(e) => setPasteUrl(e.target.value)}
+          onChange={(event) => setPasteUrl(event.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addPastedUrl(); } }}
           className="text-xs"
         />
@@ -169,7 +169,7 @@ export function MultiImageUpload({ values, onChange }: MultiImageUploadProps): R
         accept="image/*"
         multiple
         className="hidden"
-        onChange={(e) => { if (e.target.files?.length) handleFiles(e.target.files); }}
+        onChange={(event) => { if (event.target.files?.length) handleFiles(event.target.files); }}
       />
 
       {error && <p className="text-xs text-destructive">{error}</p>}

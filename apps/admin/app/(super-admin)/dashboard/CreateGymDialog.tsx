@@ -156,7 +156,7 @@ export function CreateGymDialog({ open, onOpenChange }: CreateGymDialogProps): R
                     <FormItem>
                       <FormLabel>Gym name <Required /></FormLabel>
                       <FormControl>
-                        <Input placeholder="Iron Paradise" {...field} onChange={(e) => handleNameChange(e.target.value)} />
+                        <Input placeholder="Iron Paradise" {...field} onChange={(event) => handleNameChange(event.target.value)} />
                       </FormControl>
                       <FormMessage />
                     </FormItem>
@@ -281,8 +281,8 @@ export function CreateGymDialog({ open, onOpenChange }: CreateGymDialogProps): R
                           className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
                           {...field}
                         >
-                          {CURRENCIES.map((c) => (
-                            <option key={c.value} value={c.value}>{c.label}</option>
+                          {CURRENCIES.map((currency) => (
+                            <option key={currency.value} value={currency.value}>{currency.label}</option>
                           ))}
                         </select>
                       </FormControl>
@@ -321,8 +321,8 @@ export function CreateGymDialog({ open, onOpenChange }: CreateGymDialogProps): R
                             type="file"
                             accept="image/*"
                             className="hidden"
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
+                            onChange={(event) => {
+                              const file = event.target.files?.[0];
                               if (file) handleLogoFile(file);
                             }}
                           />
@@ -338,9 +338,9 @@ export function CreateGymDialog({ open, onOpenChange }: CreateGymDialogProps): R
                           <Input
                             placeholder="or paste a URL"
                             value={field.value ?? ""}
-                            onChange={(e) => {
-                              field.onChange(e.target.value);
-                              setLogoPreview(e.target.value || null);
+                            onChange={(event) => {
+                              field.onChange(event.target.value);
+                              setLogoPreview(event.target.value || null);
                             }}
                           />
                         </div>
@@ -357,7 +357,7 @@ export function CreateGymDialog({ open, onOpenChange }: CreateGymDialogProps): R
                         <input
                           type="color"
                           value={field.value ?? "#111827"}
-                          onChange={(e) => field.onChange(e.target.value)}
+                          onChange={(event) => field.onChange(event.target.value)}
                           className="h-10 w-14 rounded-md border border-border cursor-pointer p-1 bg-input"
                         />
                         <Input

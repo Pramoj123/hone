@@ -1,5 +1,6 @@
 "use client";
 
+import { useState } from "react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useForm } from "react-hook-form";
@@ -26,6 +27,7 @@ interface AuthResponse {
 export default function LoginPage(): React.JSX.Element {
   const router = useRouter();
   const params = useSearchParams();
+  const [loginError, setLoginError] = useState<string | null>(null);
 
   const form = useForm<LoginFormData>({
     resolver: zodResolver(loginSchema),
@@ -44,7 +46,15 @@ export default function LoginPage(): React.JSX.Element {
     onSuccess: (): void => {
       router.replace(params.get("next") ?? "/dashboard");
     },
+    onError: (err: Error): void => {
+      setLoginError(err.message);
+    },
   });
+
+  const onSubmit = (data: LoginFormData): void => {
+    setLoginError(null);
+    mutation.mutate(data);
+  };
 
   return (
     <div className="min-h-screen flex items-center justify-center px-4">
@@ -57,10 +67,7 @@ export default function LoginPage(): React.JSX.Element {
         </div>
 
         <Form {...form}>
-          <form
-            onSubmit={form.handleSubmit((data) => mutation.mutate(data))}
-            className="space-y-4"
-          >
+          <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
               control={form.control}
               name="email"
@@ -89,9 +96,9 @@ export default function LoginPage(): React.JSX.Element {
               )}
             />
 
-            {mutation.error && (
+            {loginError && (
               <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">
-                {mutation.error.message}
+                {loginError}
               </p>
             )}
 
