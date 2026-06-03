@@ -1,5 +1,6 @@
 import { Module } from '@nestjs/common';
 import { ConfigModule } from '@nestjs/config';
+import { ScheduleModule } from '@nestjs/schedule';
 import { MailModule } from './mail/mail.module';
 import { AssessmentTemplatesModule } from './assessment-templates/assessment-templates.module';
 import { AuthModule } from './auth/auth.module';
@@ -15,10 +16,12 @@ import { ProgramsModule } from './programs/programs.module';
 import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { AssessmentsModule } from './assessments/assessments.module';
 import { ProgramPlansModule } from './program-plans/program-plans.module';
+import { SchedulerModule } from './scheduler/scheduler.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
+    ScheduleModule.forRoot(),
     MailModule,
     AssessmentTemplatesModule,
     UsersModule,
@@ -34,6 +37,7 @@ import { ProgramPlansModule } from './program-plans/program-plans.module';
     WorkoutLogsModule,
     AssessmentsModule,
     ProgramPlansModule,
+    SchedulerModule,
   ],
 })
 export class AppModule {}
