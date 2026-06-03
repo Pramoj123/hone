@@ -43,6 +43,14 @@ const REVIEW_STATUS_CONFIG: Record<string, { label: string; className: string; I
   REJECTED: { label: "Rejected", className: "bg-red-100 text-red-700", Icon: XCircle },
 };
 
+const FILTER_TAB_LABELS: Record<string, string> = {
+  ALL: "All",
+  DRAFT: "Draft",
+  PENDING_REVIEW: "Pending review",
+  APPROVED: "Approved",
+  REJECTED: "Rejected",
+};
+
 const DIFFICULTY_COLOR: Record<string, string> = {
   BEGINNER: "bg-green-100 text-green-700",
   INTERMEDIATE: "bg-yellow-100 text-yellow-700",
@@ -124,7 +132,7 @@ export default function GymWorkoutsPage({ params }: PageProps): React.JSX.Elemen
                   : "bg-muted text-muted-foreground hover:bg-accent"
               }`}
             >
-              {tab === "ALL" ? "All" : REVIEW_STATUS_CONFIG[tab]?.label ?? tab}
+              {FILTER_TAB_LABELS[tab] ?? tab}
             </button>
           ))}
         </div>

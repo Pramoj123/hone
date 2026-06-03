@@ -17,7 +17,7 @@ interface Me {
 const NAV = [
   { href: "/dashboard", label: "Home", icon: Home, exact: true },
   { href: "/dashboard/programs", label: "Programs", icon: Dumbbell },
-  { href: "/dashboard/logs", label: "Workout logs", icon: History },
+  { href: "/dashboard/logs", label: "Logs", icon: History },
   { href: "/dashboard/assessments", label: "Assessments", icon: ClipboardList },
   { href: "/dashboard/profile", label: "Profile", icon: User },
   { href: "/dashboard/settings", label: "Settings", icon: Settings },

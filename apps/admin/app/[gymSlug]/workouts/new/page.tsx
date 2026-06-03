@@ -20,6 +20,10 @@ import {
 const CATEGORIES = ["CARDIO", "STRENGTH", "HIIT", "FLEXIBILITY", "MOBILITY", "PLYOMETRICS", "CORE"];
 const DIFFICULTIES = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
 
+function enumLabel(value: string): string {
+  return value === "HIIT" ? "HIIT" : value.charAt(0) + value.slice(1).toLowerCase();
+}
+
 const schema = z.object({
   name: z.string().min(2, "Required"),
   slug: z.string().min(2).regex(/^[a-z0-9-]+$/, "Lowercase, numbers, hyphens only"),
@@ -120,7 +124,7 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
                   <FormLabel>Category <Req /></FormLabel>
                   <FormControl>
                     <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                      {CATEGORIES.map((category) => <option key={category} value={category}>{category}</option>)}
+                      {CATEGORIES.map((category) => <option key={category} value={category}>{enumLabel(category)}</option>)}
                     </select>
                   </FormControl>
                   <FormMessage />
@@ -131,7 +135,7 @@ export default function NewGymWorkoutPage({ params }: PageProps): React.JSX.Elem
                   <FormLabel>Difficulty <Req /></FormLabel>
                   <FormControl>
                     <select className="flex h-10 w-full rounded-md border border-border bg-input px-3 py-2 text-sm" {...field}>
-                      {DIFFICULTIES.map((difficulty) => <option key={difficulty} value={difficulty}>{difficulty}</option>)}
+                      {DIFFICULTIES.map((difficulty) => <option key={difficulty} value={difficulty}>{enumLabel(difficulty)}</option>)}
                     </select>
                   </FormControl>
                   <FormMessage />

@@ -76,7 +76,14 @@ type PasswordForm = z.infer<typeof passwordSchema>;
 
 const GENDER_OPTIONS = ["Male", "Female", "Non-binary", "Prefer not to say"];
 const FITNESS_LEVELS = ["BEGINNER", "INTERMEDIATE", "ADVANCED"];
-const PRIMARY_GOALS = ["MUSCLE_GAIN", "WEIGHT_LOSS", "ENDURANCE", "STRENGTH", "FLEXIBILITY", "GENERAL_FITNESS"];
+const PRIMARY_GOALS: { value: string; label: string }[] = [
+  { value: "MUSCLE_GAIN",     label: "Muscle gain"     },
+  { value: "WEIGHT_LOSS",     label: "Weight loss"     },
+  { value: "ENDURANCE",       label: "Endurance"       },
+  { value: "STRENGTH",        label: "Strength"        },
+  { value: "FLEXIBILITY",     label: "Flexibility"     },
+  { value: "GENERAL_FITNESS", label: "General fitness" },
+];
 const BLOOD_TYPES = ["A+", "A-", "B+", "B-", "AB+", "AB-", "O+", "O-"];
 
 function FieldLabel({ children }: { children: React.ReactNode }) {
@@ -325,8 +332,8 @@ export default function SettingsPage(): React.JSX.Element {
                 <FieldLabel>Primary goal</FieldLabel>
                 <NativeSelect {...healthForm.register("primaryGoal")}>
                   <option value="">Select…</option>
-                  {PRIMARY_GOALS.map((goal) => (
-                    <option key={goal} value={goal}>{goal.replace(/_/g, " ")}</option>
+                  {PRIMARY_GOALS.map(({ value, label }) => (
+                    <option key={value} value={value}>{label}</option>
                   ))}
                 </NativeSelect>
               </div>

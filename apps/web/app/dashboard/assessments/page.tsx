@@ -112,6 +112,7 @@ export default function AssessmentsPage(): React.JSX.Element {
             <button
               key={tabItem}
               onClick={() => setTab(tabItem)}
+              aria-label={tabItem === "pending" ? "Pending" : `Completed (${count})`}
               className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
                 tab === tabItem
                   ? "border-primary text-foreground"
@@ -120,7 +121,7 @@ export default function AssessmentsPage(): React.JSX.Element {
             >
               {tabItem === "pending" ? "Pending" : "Completed"}
               {count > 0 && (
-                <span className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
+                <span aria-hidden="true" className={`ml-1.5 text-xs px-1.5 py-0.5 rounded-full ${
                   tab === tabItem ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
                 }`}>
                   {count}
