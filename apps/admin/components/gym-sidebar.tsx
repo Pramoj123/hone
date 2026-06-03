@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { LayoutDashboard, GitBranch, Users, UserCheck, Dumbbell, ClipboardList, LogOut, UsersRound } from "lucide-react";
+import { LayoutDashboard, GitBranch, Users, UserCheck, Dumbbell, ClipboardList, LogOut, UsersRound, LayoutGrid } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useCurrentUser } from "@/lib/use-current-user";
 
@@ -31,6 +31,12 @@ export function buildNavItems(gymSlug: string): NavItem[] {
       label: "My clients",
       icon: UsersRound,
       roles: ["TRAINER"],
+    },
+    {
+      href: `/${gymSlug}/program-plans/new`,
+      label: "Program plans",
+      icon: LayoutGrid,
+      roles: ["TRAINER", "BRANCH_MANAGER", "ORG_ADMIN", "SUPER_ADMIN"],
     },
     {
       href: `/${gymSlug}/branches`,

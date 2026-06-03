@@ -47,6 +47,7 @@ model Organization {
   workouts            Workout[]            @relation("OrgWorkouts")
   assessmentTemplates AssessmentTemplate[] @relation("OrgTemplates")
   assessments         Assessment[]         @relation("OrgAssessments")
+  programPlans        ProgramPlan[]
   createdAt           DateTime             @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -129,6 +130,8 @@ model User {
   newAssessmentsAsClient  Assessment[]         @relation("AssessmentClient")
   newAssessmentsAsTrainer Assessment[]         @relation("AssessmentTrainer")
   createdTemplates     AssessmentTemplate[] @relation("TemplateCreator")
+  plansAsTrainer       ProgramPlan[]        @relation("TrainerPlans")
+  plansAsClient        ProgramPlan[]        @relation("ClientPlans")
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -156,6 +159,13 @@ enum AssessmentStatus {
   PENDING
   SUBMITTED
   REVIEWED
+}
+
+enum PlanStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
 }
 
 enum RecurrenceDay {
@@ -212,7 +222,8 @@ model Workout {
   updatedAt   DateTime  @updatedAt
   deletedAt   DateTime?
 
-  programs WorkoutProgram[]
+  programs    WorkoutProgram[]
+  planEntries ProgramPlanEntry[]
 
   @@index([slug])
   @@index([category])
@@ -382,6 +393,57 @@ model Assessment {
   @@index([organizationId])
   @@index([status])
   @@index([year, weekNumber])
+}
+
+// ── Multi-week program plans ──────────────────────────────────────────────────
+
+model ProgramPlan {
+  id             String       @id @default(cuid())
+  organizationId String
+  organization   Organization @relation(fields: [organizationId], references: [id])
+  trainerId      String
+  trainer        User         @relation("TrainerPlans", fields: [trainerId], references: [id])
+  clientId       String
+  client         User         @relation("ClientPlans", fields: [clientId], references: [id])
+
+  name        String
+  description String?
+  totalWeeks  Int
+  startDate   DateTime
+  status      PlanStatus @default(DRAFT)
+
+  entries ProgramPlanEntry[]
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([organizationId])
+  @@index([trainerId])
+  @@index([clientId])
+  @@index([status])
+}
+
+model ProgramPlanEntry {
+  id        String      @id @default(cuid())
+  planId    String
+  plan      ProgramPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  workoutId String
+  workout   Workout     @relation(fields: [workoutId], references: [id])
+
+  weekNumber            Int
+  dayOfWeek             RecurrenceDay
+  notes                 String?
+  targetSets            Int?
+  targetReps            Int?
+  targetWeightKg        Float?
+  targetDurationMinutes Int?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([planId])
+  @@index([workoutId])
 }
 
 // @deprecated — replaced by Assessment + AssessmentTemplate above.

@@ -48,6 +48,8 @@ export const authApi = {
     request<T>(path, { method: "GET", headers: await getAuthHeader() }),
   post: async <T>(path: string, body: unknown): Promise<T> =>
     request<T>(path, { method: "POST", body: JSON.stringify(body), headers: await getAuthHeader() }),
+  put: async <T>(path: string, body: unknown): Promise<T> =>
+    request<T>(path, { method: "PUT", body: JSON.stringify(body), headers: await getAuthHeader() }),
   patch: async <T>(path: string, body: unknown): Promise<T> =>
     request<T>(path, { method: "PATCH", body: JSON.stringify(body), headers: await getAuthHeader() }),
   delete: async <T>(path: string): Promise<T> =>

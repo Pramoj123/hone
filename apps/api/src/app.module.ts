@@ -14,6 +14,7 @@ import { GymWorkoutsModule } from './gym-workouts/gym-workouts.module';
 import { ProgramsModule } from './programs/programs.module';
 import { WorkoutLogsModule } from './workout-logs/workout-logs.module';
 import { AssessmentsModule } from './assessments/assessments.module';
+import { ProgramPlansModule } from './program-plans/program-plans.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AssessmentsModule } from './assessments/assessments.module';
     ProgramsModule,
     WorkoutLogsModule,
     AssessmentsModule,
+    ProgramPlansModule,
   ],
 })
 export class AppModule {}
