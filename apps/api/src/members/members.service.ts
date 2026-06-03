@@ -6,10 +6,11 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
-import { prisma, Role } from '@hone/database';
+import { prisma, Role, ProgramStatus } from '@hone/database';
 import { MailService } from '../mail/mail.service';
 import type { CreateMemberDto } from './dto/create-member.dto';
 import type { UpdateMemberProfileDto } from './dto/update-member-profile.dto';
+import type { ListMyClientsDto } from './dto/list-my-clients.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
 
 const MEMBER_SELECT = {
@@ -181,6 +182,109 @@ export class MembersService {
       update: data,
       create: { userId: memberId, ...data },
     });
+  }
+
+  async findMyClients(
+    organizationId: string,
+    trainerId: string,
+    dto: ListMyClientsDto,
+  ): Promise<unknown> {
+    const { search, page = 1, limit = 20 } = dto;
+
+    const searchWhere = search
+      ? {
+          OR: [
+            { name: { contains: search, mode: 'insensitive' as const } },
+            { email: { contains: search, mode: 'insensitive' as const } },
+          ],
+        }
+      : {};
+
+    const baseWhere = {
+      trainerId,
+      deletedAt: null,
+      client: {
+        branch: { organizationId },
+        deletedAt: null,
+        ...searchWhere,
+      },
+    };
+
+    // Distinct client IDs — Prisma distinct + pagination
+    const allDistinct = await prisma.workoutProgram.findMany({
+      where: baseWhere,
+      select: { clientId: true },
+      distinct: ['clientId'],
+      orderBy: { createdAt: 'desc' },
+    });
+
+    const total = allDistinct.length;
+    const pagedIds = allDistinct
+      .slice((page - 1) * limit, page * limit)
+      .map((row) => row.clientId);
+
+    if (pagedIds.length === 0) {
+      return { data: [], total, page, limit };
+    }
+
+    const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+    // Fetch all programs this trainer has with these clients (for stat computation)
+    const programs = await prisma.workoutProgram.findMany({
+      where: { trainerId, clientId: { in: pagedIds }, deletedAt: null },
+      select: {
+        clientId: true,
+        status: true,
+        createdAt: true,
+        logs: {
+          select: { completedAt: true },
+          orderBy: { completedAt: 'desc' },
+          take: 1,
+        },
+      },
+    });
+
+    // Fetch client user records
+    const users = await prisma.user.findMany({
+      where: { id: { in: pagedIds } },
+      select: { id: true, name: true, email: true, phone: true, photoUrl: true, memberNumber: true },
+    });
+    const userMap = new Map(users.map((u) => [u.id, u]));
+
+    const data = pagedIds.map((clientId) => {
+      const clientPrograms = programs.filter((p) => p.clientId === clientId);
+      const totalPrograms = clientPrograms.length;
+      const activeProgramsCount = clientPrograms.filter(
+        (p) => p.status === ProgramStatus.ACTIVE,
+      ).length;
+
+      // Last session: most recent log across all programs
+      const lastSessionDate =
+        clientPrograms
+          .flatMap((p) => p.logs)
+          .sort((a, b) => b.completedAt.getTime() - a.completedAt.getTime())[0]
+          ?.completedAt ?? null;
+
+      // Compliance: last 30 days only
+      const recentPrograms = clientPrograms.filter((p) => p.createdAt >= thirtyDaysAgo);
+      const completedRecent = recentPrograms.filter(
+        (p) => p.status === ProgramStatus.COMPLETED,
+      ).length;
+      const complianceRate =
+        recentPrograms.length > 0
+          ? Math.round((completedRecent / recentPrograms.length) * 100)
+          : 0;
+
+      return {
+        ...userMap.get(clientId)!,
+        totalPrograms,
+        activeProgramsCount,
+        lastSessionDate,
+        complianceRate,
+      };
+    });
+
+    return { data, total, page, limit };
   }
 
   async remove(id: string, organizationId: string): Promise<{ ok: boolean }> {

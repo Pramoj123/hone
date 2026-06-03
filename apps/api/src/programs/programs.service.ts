@@ -55,12 +55,14 @@ export class ProgramsService {
   }
 
   async findAll(organizationId: string, user: CurrentUserType, query: ListProgramsDto): Promise<unknown> {
-    const { clientId, trainerId, status, page = 1, limit = 20 } = query;
+    const { clientId, status, page = 1, limit = 20 } = query;
+    const resolvedTrainerId =
+      query.trainerId === 'me' ? user.id : query.trainerId;
 
     const where = {
       deletedAt: null,
       ...(clientId ? { clientId } : {}),
-      ...(trainerId ? { trainerId } : {}),
+      ...(resolvedTrainerId ? { trainerId: resolvedTrainerId } : {}),
       ...(status ? { status: status as ProgramStatus } : {}),
       client: {
         branch: { organizationId },

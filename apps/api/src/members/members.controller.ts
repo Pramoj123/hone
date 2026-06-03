@@ -6,6 +6,7 @@ import {
   Param,
   Patch,
   Delete,
+  Query,
   UseGuards,
   Req,
 } from '@nestjs/common';
@@ -13,6 +14,7 @@ import { Request } from 'express';
 import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberProfileDto } from './dto/update-member-profile.dto';
+import { ListMyClientsDto } from './dto/list-my-clients.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrgScopeGuard } from '../common/guards/org-scope.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -34,6 +36,17 @@ export class MembersController {
   @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.TRAINER, Role.SUPER_ADMIN)
   findAll(@Req() req: OrgRequest, @CurrentUser() user: CurrentUserType) {
     return this.members.findAll(req.org.id, user);
+  }
+
+  // Must be declared before GET :id so NestJS doesn't treat "my-clients" as an ID
+  @Get('my-clients')
+  @Roles(Role.TRAINER, Role.BRANCH_MANAGER, Role.ORG_ADMIN, Role.SUPER_ADMIN)
+  findMyClients(
+    @Req() req: OrgRequest,
+    @CurrentUser() user: CurrentUserType,
+    @Query() query: ListMyClientsDto,
+  ) {
+    return this.members.findMyClients(req.org.id, user.id, query);
   }
 
   @Post()
