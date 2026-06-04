@@ -14,6 +14,15 @@ import { Request } from 'express';
 import { StaffService } from './staff.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { UpdateStaffDto } from './dto/update-staff.dto';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+
+class InviteStaffDto {
+  @IsString() name!: string;
+  @IsEmail() email!: string;
+  @IsString() role!: string;
+  @IsOptional() @IsString() branchId?: string;
+  @IsOptional() @IsString() employeeId?: string;
+}
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrgScopeGuard } from '../common/guards/org-scope.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -45,6 +54,12 @@ export class StaffController {
   @Roles(Role.ORG_ADMIN, Role.SUPER_ADMIN)
   create(@Req() req: OrgRequest, @Body() dto: CreateStaffDto) {
     return this.staff.create(req.org.id, dto);
+  }
+
+  @Post('invite')
+  @Roles(Role.ORG_ADMIN, Role.SUPER_ADMIN)
+  invite(@Req() req: OrgRequest, @Body() dto: InviteStaffDto) {
+    return this.staff.invite(req.org.id, dto);
   }
 
   @Get(':id')

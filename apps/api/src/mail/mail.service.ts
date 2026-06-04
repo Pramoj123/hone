@@ -6,6 +6,10 @@ import {
   programAssignedEmail,
   assessmentReadyEmail,
   passwordChangedEmail,
+  passwordResetEmail,
+  emailVerificationEmail,
+  staffInviteEmail,
+  memberInviteEmail,
 } from './templates';
 
 @Injectable()
@@ -49,6 +53,30 @@ export class MailService {
   }) {
     const { subject, html } = assessmentReadyEmail({ ...opts, appUrl: this.appUrl });
     await this.send(opts.clientEmail, subject, html);
+  }
+
+  async sendStaffInvite(to: string, name: string, gymName: string, role: string, token: string) {
+    const inviteUrl = `${this.appUrl}/accept-invite?token=${token}`;
+    const { subject, html } = staffInviteEmail({ name, gymName, role, inviteUrl });
+    await this.send(to, subject, html);
+  }
+
+  async sendMemberInvite(to: string, name: string, gymName: string, token: string) {
+    const inviteUrl = `${this.appUrl}/accept-invite?token=${token}`;
+    const { subject, html } = memberInviteEmail({ name, gymName, inviteUrl });
+    await this.send(to, subject, html);
+  }
+
+  async sendEmailVerification(to: string, name: string, token: string) {
+    const verifyUrl = `${this.appUrl}/verify-email?token=${token}`;
+    const { subject, html } = emailVerificationEmail({ name, verifyUrl });
+    await this.send(to, subject, html);
+  }
+
+  async sendPasswordReset(to: string, name: string, token: string) {
+    const resetUrl = `${this.appUrl}/reset-password?token=${token}`;
+    const { subject, html } = passwordResetEmail({ name, resetUrl });
+    await this.send(to, subject, html);
   }
 
   async sendPasswordChanged(to: string, name: string) {

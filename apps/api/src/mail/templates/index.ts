@@ -141,6 +141,64 @@ export function assessmentReadyEmail(opts: {
   };
 }
 
+export function staffInviteEmail(opts: {
+  name: string;
+  gymName: string;
+  role: string;
+  inviteUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `You've been invited to join ${opts.gymName} on Hone`,
+    html: layout(`Welcome to ${opts.gymName}`, `
+      <p style="${P_DARK}">Hi <strong>${opts.name}</strong>,</p>
+      <p style="${P}">You've been added to <strong style="color:#e5e7eb">${opts.gymName}</strong> as a <strong style="color:#ccff00">${opts.role}</strong> on the Hone fitness platform.</p>
+      <p style="${P}">Click the button below to set your password and activate your account. This link expires in <strong style="color:#e5e7eb">48 hours</strong>.</p>
+      <a href="${opts.inviteUrl}" style="${BTN}">Activate my account</a>
+      <p style="margin-top:24px;${P}">If you weren't expecting this invitation, you can safely ignore this email.</p>
+    `),
+  };
+}
+
+export function memberInviteEmail(opts: {
+  name: string;
+  gymName: string;
+  inviteUrl: string;
+}): { subject: string; html: string } {
+  return {
+    subject: `Your ${opts.gymName} membership is ready on Hone`,
+    html: layout(`You've been added to ${opts.gymName}`, `
+      <p style="${P_DARK}">Hi <strong>${opts.name}</strong>,</p>
+      <p style="${P}">Your gym <strong style="color:#e5e7eb">${opts.gymName}</strong> has set you up on Hone — your fitness tracking platform for programs, workouts, and assessments.</p>
+      <p style="${P}">Set your own password to get started. This link expires in <strong style="color:#e5e7eb">48 hours</strong>.</p>
+      <a href="${opts.inviteUrl}" style="${BTN}">Set my password</a>
+    `),
+  };
+}
+
+export function emailVerificationEmail(opts: { name: string; verifyUrl: string }): { subject: string; html: string } {
+  return {
+    subject: 'Verify your Hone email address',
+    html: layout('Confirm Your Email', `
+      <p style="${P_DARK}">Hi <strong>${opts.name}</strong>,</p>
+      <p style="${P}">Thanks for joining Hone! Please verify your email address to unlock all features.</p>
+      <a href="${opts.verifyUrl}" style="${BTN}">Verify email address</a>
+      <p style="margin-top:24px;${P}">This link is valid for 24 hours. If you didn't create a Hone account, you can ignore this email.</p>
+    `),
+  };
+}
+
+export function passwordResetEmail(opts: { name: string; resetUrl: string }): { subject: string; html: string } {
+  return {
+    subject: 'Reset your Hone password',
+    html: layout('Reset Your Password', `
+      <p style="${P_DARK}">Hi <strong>${opts.name}</strong>,</p>
+      <p style="${P}">We received a request to reset your Hone account password. Click the button below to choose a new password. This link expires in <strong style="color:#e5e7eb">1 hour</strong>.</p>
+      <a href="${opts.resetUrl}" style="${BTN}">Reset password</a>
+      <p style="margin-top:24px;${P}">If you didn't request a password reset, you can safely ignore this email. Your password won't be changed.</p>
+    `),
+  };
+}
+
 export function passwordChangedEmail(opts: { name: string }): { subject: string; html: string } {
   return {
     subject: 'Your Hone password was changed',

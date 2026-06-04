@@ -6,7 +6,9 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { prisma, Role } from '@hone/database';
+import { MailService } from '../mail/mail.service';
 import type { CreateStaffDto } from './dto/create-staff.dto';
 import type { UpdateStaffDto } from './dto/update-staff.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
@@ -35,6 +37,7 @@ const STAFF_SELECT = {
 
 @Injectable()
 export class StaffService {
+  constructor(private mail: MailService) {}
   async findAll(
     organizationId: string,
     user: CurrentUserType,
@@ -161,5 +164,42 @@ export class StaffService {
     await this.findOne(id, organizationId, undefined);
     await prisma.user.update({ where: { id }, data: { deletedAt: new Date() } });
     return { ok: true };
+  }
+
+  // ── Flow 4: Staff invite by email ─────────────────────────────────────────
+
+  async invite(
+    organizationId: string,
+    dto: { name: string; email: string; role: string; branchId?: string; employeeId?: string },
+  ) {
+    const existing = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ConflictException('Email already registered');
+
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+
+    const member = await prisma.user.create({
+      data: {
+        email: dto.email,
+        name: dto.name,
+        passwordHash: '', // no password until invite is accepted
+        role: dto.role as Role,
+        organizationId,
+        branchId: dto.branchId,
+        employeeId: dto.employeeId,
+        passwordResetToken: inviteToken,
+        passwordResetExpiry: inviteExpiry,
+      },
+      select: STAFF_SELECT,
+    });
+
+    const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } });
+    const roleName = dto.role.replace(/_/g, ' ').toLowerCase().replace(/\b\w/g, (c) => c.toUpperCase());
+
+    this.mail.sendStaffInvite(
+      dto.email, dto.name, org?.name ?? 'your gym', roleName, inviteToken,
+    ).catch(() => null);
+
+    return member;
   }
 }

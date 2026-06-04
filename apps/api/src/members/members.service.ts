@@ -6,6 +6,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { prisma, Role, ProgramStatus } from '@hone/database';
 import { MailService } from '../mail/mail.service';
 import type { CreateMemberDto } from './dto/create-member.dto';
@@ -285,6 +286,48 @@ export class MembersService {
     });
 
     return { data, total, page, limit };
+  }
+
+  // ── Flow 4: Member invite by email ───────────────────────────────────────
+
+  async invite(organizationId: string, dto: Omit<CreateMemberDto, 'password'> & { branchId: string }) {
+    const branch = await prisma.branch.findFirst({ where: { id: dto.branchId, organizationId, deletedAt: null } });
+    if (!branch) throw new BadRequestException('Branch not found in this organization');
+
+    const existing = await prisma.user.findUnique({ where: { email: dto.email } });
+    if (existing) throw new ConflictException('Email already registered');
+
+    const inviteToken = crypto.randomBytes(32).toString('hex');
+    const inviteExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+
+    const member = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
+        data: {
+          name: dto.name,
+          email: dto.email,
+          passwordHash: '', // no password until invite accepted
+          role: Role.CLIENT,
+          branchId: dto.branchId,
+          phone: dto.phone,
+          gender: dto.gender,
+          memberNumber: dto.memberNumber,
+          fitnessGoals: dto.fitnessGoals,
+          referredBy: dto.referredBy,
+          emergencyContactName: dto.emergencyContactName,
+          emergencyContactPhone: dto.emergencyContactPhone,
+          healthNotes: dto.healthNotes,
+          passwordResetToken: inviteToken,
+          passwordResetExpiry: inviteExpiry,
+        },
+        select: MEMBER_SELECT,
+      });
+      await tx.memberProfile.create({ data: { userId: created.id } });
+      return created;
+    });
+
+    const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } });
+    this.mail.sendMemberInvite(dto.email, dto.name, org?.name ?? 'your gym', inviteToken).catch(() => null);
+    return member;
   }
 
   async remove(id: string, organizationId: string): Promise<{ ok: boolean }> {

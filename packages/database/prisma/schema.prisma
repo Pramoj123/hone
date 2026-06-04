@@ -119,7 +119,16 @@ model User {
   fitnessGoals String?
   referredBy   String?
 
+  // Auth — password reset (Flow 1)
+  passwordResetToken  String?   @unique
+  passwordResetExpiry DateTime?
+
+  // Auth — email verification (Flow 2)
+  emailVerifiedAt DateTime?
+  emailVerifyToken String?   @unique
+
   memberProfile MemberProfile?
+  refreshTokens RefreshToken[]
 
   createdWorkouts      Workout[]            @relation("WorkoutCreator")
   programsAsClient     WorkoutProgram[]     @relation("ClientPrograms")
@@ -393,6 +402,21 @@ model Assessment {
   @@index([organizationId])
   @@index([status])
   @@index([year, weekNumber])
+}
+
+// ── Auth tokens (refresh + revocation) ───────────────────────────────────────
+
+model RefreshToken {
+  id        String    @id @default(cuid())
+  userId    String
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  tokenHash String    @unique  // bcrypt hash of the raw refresh token
+  expiresAt DateTime
+  revokedAt DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+  @@index([tokenHash])
 }
 
 // ── Multi-week program plans ──────────────────────────────────────────────────

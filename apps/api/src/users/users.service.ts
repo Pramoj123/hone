@@ -9,7 +9,7 @@ export class UsersService {
     });
   }
 
-  create(data: { email: string; passwordHash: string; name: string }): Promise<User> {
+  create(data: { email: string; passwordHash: string; name: string; emailVerifyToken?: string }): Promise<User> {
     return prisma.user.create({ data });
   }
 

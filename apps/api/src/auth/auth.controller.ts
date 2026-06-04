@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, UseGuards } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Query } from '@nestjs/common';
 import { IsOptional, IsString, IsArray, IsNumber, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AuthService } from './auth.service';
@@ -35,9 +35,13 @@ class UpdatePasswordDto {
   @IsString() @MinLength(8) newPassword!: string;
 }
 
-interface AuthTokens {
-  access_token: string;
-  refresh_token: string;
+class ForgotPasswordDto {
+  @IsString() email!: string;
+}
+
+class ResetPasswordDto {
+  @IsString() token!: string;
+  @IsString() @MinLength(8) newPassword!: string;
 }
 
 @Controller('auth')
@@ -45,19 +49,26 @@ export class AuthController {
   constructor(private auth: AuthService) {}
 
   @Post('register')
-  register(@Body() dto: RegisterDto): Promise<AuthTokens> {
+  register(@Body() dto: RegisterDto): Promise<{ access_token: string; refresh_token: string }> {
     return this.auth.register(dto);
   }
 
   @Post('login')
-  login(@Body() dto: LoginDto): Promise<AuthTokens> {
+  login(@Body() dto: LoginDto): Promise<{ access_token: string; refresh_token: string }> {
     return this.auth.login(dto);
   }
 
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
-  refresh(@CurrentUser() user: CurrentUserType): AuthTokens {
-    return this.auth.refresh(user.id, user.email, String(user.role));
+  async refresh(@CurrentUser() user: CurrentUserType, @Body('refresh_token') rawToken?: string): Promise<{ access_token: string; refresh_token: string }> {
+    return this.auth.refresh(user.id, user.email, String(user.role), null, rawToken);
+  }
+
+  // ── Flow 3: Logout (revoke refresh token) ──────────────────────────────────
+  @Post('logout')
+  logout(@Body('refresh_token') rawToken?: string) {
+    if (!rawToken) return { ok: true };
+    return this.auth.logout(rawToken);
   }
 
   @UseGuards(JwtAuthGuard)
@@ -82,5 +93,37 @@ export class AuthController {
   @Patch('me/password')
   updatePassword(@CurrentUser() user: CurrentUserType, @Body() dto: UpdatePasswordDto) {
     return this.auth.updatePassword(user.id, dto.currentPassword, dto.newPassword);
+  }
+
+  // ── Flow 1: Forgot / Reset password ────────────────────────────────────────
+
+  @Post('forgot-password')
+  forgotPassword(@Body() dto: ForgotPasswordDto) {
+    return this.auth.forgotPassword(dto.email);
+  }
+
+  @Post('reset-password')
+  resetPassword(@Body() dto: ResetPasswordDto) {
+    return this.auth.resetPassword(dto.token, dto.newPassword);
+  }
+
+  // ── Flow 4: Accept invite ──────────────────────────────────────────────────
+
+  @Post('accept-invite')
+  async acceptInvite(@Body() dto: ResetPasswordDto): Promise<{ access_token: string; refresh_token: string }> {
+    return this.auth.acceptInvite(dto.token, dto.newPassword);
+  }
+
+  // ── Flow 2: Email verification ─────────────────────────────────────────────
+
+  @Get('verify-email')
+  verifyEmail(@Query('token') token: string) {
+    return this.auth.verifyEmail(token);
+  }
+
+  @UseGuards(JwtAuthGuard)
+  @Post('resend-verification')
+  resendVerification(@CurrentUser() user: CurrentUserType) {
+    return this.auth.resendVerification(user.id);
   }
 }

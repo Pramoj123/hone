@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 const STAFF_ROLES = ["SUPER_ADMIN", "ORG_ADMIN", "BRANCH_MANAGER", "TRAINER"];
-const PUBLIC_PATHS = ["/login"];
+const PUBLIC_PATHS = ["/login", "/accept-invite"];
 
 interface JwtPayload {
   sub: string;

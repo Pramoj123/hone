@@ -105,6 +105,12 @@ export default function LoginPage(): React.JSX.Element {
             <Button type="submit" className="w-full" disabled={mutation.isPending}>
               {mutation.isPending ? "Signing in…" : "Sign in"}
             </Button>
+
+            <div className="text-center">
+              <Link href="/forgot-password" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
+                Forgot your password?
+              </Link>
+            </div>
           </form>
         </Form>
 

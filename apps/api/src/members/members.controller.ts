@@ -15,6 +15,21 @@ import { MembersService } from './members.service';
 import { CreateMemberDto } from './dto/create-member.dto';
 import { UpdateMemberProfileDto } from './dto/update-member-profile.dto';
 import { ListMyClientsDto } from './dto/list-my-clients.dto';
+import { IsEmail, IsOptional, IsString } from 'class-validator';
+
+class InviteMemberDto {
+  @IsString() name!: string;
+  @IsEmail() email!: string;
+  @IsString() branchId!: string;
+  @IsOptional() @IsString() phone?: string;
+  @IsOptional() @IsString() gender?: string;
+  @IsOptional() @IsString() memberNumber?: string;
+  @IsOptional() @IsString() fitnessGoals?: string;
+  @IsOptional() @IsString() referredBy?: string;
+  @IsOptional() @IsString() emergencyContactName?: string;
+  @IsOptional() @IsString() emergencyContactPhone?: string;
+  @IsOptional() @IsString() healthNotes?: string;
+}
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { OrgScopeGuard } from '../common/guards/org-scope.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -53,6 +68,12 @@ export class MembersController {
   @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.SUPER_ADMIN)
   create(@Req() req: OrgRequest, @Body() dto: CreateMemberDto) {
     return this.members.create(req.org.id, dto);
+  }
+
+  @Post('invite')
+  @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.SUPER_ADMIN)
+  invite(@Req() req: OrgRequest, @Body() dto: InviteMemberDto) {
+    return this.members.invite(req.org.id, dto as any);
   }
 
   @Get(':id')

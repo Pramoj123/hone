@@ -1,6 +1,7 @@
 import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
+import * as crypto from 'crypto';
 import { prisma } from '@hone/database';
 import { UsersService } from '../users/users.service';
 import { MailService } from '../mail/mail.service';
@@ -25,11 +26,70 @@ export class AuthService {
     if (existing) throw new ConflictException('Email already registered');
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
-    const user = await this.users.create({ email: dto.email, passwordHash, name: dto.name });
+    const emailVerifyToken = crypto.randomBytes(32).toString('hex');
 
-    this.mail.sendWelcome(user.email, user.name).catch(() => null);
+    const user = await this.users.create({
+      email: dto.email,
+      passwordHash,
+      name: dto.name,
+      emailVerifyToken,
+    });
 
-    return this.issueTokens(user.id, user.email, user.role, null);
+    this.mail.sendEmailVerification(user.email, user.name, emailVerifyToken).catch(() => null);
+
+    const tokens = this.issueTokens(user.id, user.email, user.role, null);
+    await this.storeRefreshToken(user.id, tokens.refresh_token);
+    return tokens;
+  }
+
+  // ── Flow 3: Token storage helpers ──────────────────────────────────────────
+
+  private async storeRefreshToken(userId: string, rawToken: string): Promise<void> {
+    const tokenHash = await bcrypt.hash(rawToken, 8); // cost 8 — fast, not password
+    const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
+    await prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
+    // Prune old expired tokens for this user (keep last 5 active)
+    const tokens = await prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      orderBy: { createdAt: 'desc' },
+    });
+    if (tokens.length > 5) {
+      const toRevoke = tokens.slice(5).map((t) => t.id);
+      await prisma.refreshToken.updateMany({ where: { id: { in: toRevoke } }, data: { revokedAt: new Date() } });
+    }
+  }
+
+  async logout(rawRefreshToken: string): Promise<{ ok: boolean }> {
+    // Find the token record by comparing bcrypt hashes
+    const tokens = await prisma.refreshToken.findMany({
+      where: { revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true, tokenHash: true },
+      take: 50, // safety limit
+    });
+    for (const record of tokens) {
+      const match = await bcrypt.compare(rawRefreshToken, record.tokenHash);
+      if (match) {
+        await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
+        return { ok: true };
+      }
+    }
+    return { ok: true }; // silent if not found — idempotent
+  }
+
+  async validateRefreshToken(rawRefreshToken: string, userId: string): Promise<boolean> {
+    const tokens = await prisma.refreshToken.findMany({
+      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
+      select: { id: true, tokenHash: true },
+    });
+    for (const record of tokens) {
+      const match = await bcrypt.compare(rawRefreshToken, record.tokenHash);
+      if (match) {
+        // Rotate — revoke old token
+        await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
+        return true;
+      }
+    }
+    return false;
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
@@ -53,11 +113,20 @@ export class AuthService {
       gymSlug = branch?.organization?.slug ?? null;
     }
 
-    return this.issueTokens(user.id, user.email, user.role, gymSlug);
+    const tokens = this.issueTokens(user.id, user.email, user.role, gymSlug);
+    await this.storeRefreshToken(user.id, tokens.refresh_token);
+    return tokens;
   }
 
-  refresh(userId: string, email: string, role: string, gymSlug: string | null = null): AuthTokens {
-    return this.issueTokens(userId, email, role, gymSlug);
+  async refresh(userId: string, email: string, role: string, gymSlug: string | null = null, rawRefreshToken?: string): Promise<AuthTokens> {
+    // Validate the incoming refresh token against DB and rotate it
+    if (rawRefreshToken) {
+      const valid = await this.validateRefreshToken(rawRefreshToken, userId);
+      if (!valid) throw new UnauthorizedException('Refresh token is invalid or revoked');
+    }
+    const tokens = this.issueTokens(userId, email, role, gymSlug);
+    await this.storeRefreshToken(userId, tokens.refresh_token);
+    return tokens;
   }
 
   async getMe(userId: string) {
@@ -76,6 +145,7 @@ export class AuthService {
         referredBy: true,
         organizationId: true,
         branchId: true,
+        emailVerifiedAt: true,
         createdAt: true,
         updatedAt: true,
         memberProfile: {
@@ -158,6 +228,118 @@ export class AuthService {
 
     this.mail.sendPasswordChanged(user.email, user.name ?? user.email).catch(() => null);
 
+    return { ok: true };
+  }
+
+  // ── Flow 4: Accept invite (staff or member) ────────────────────────────────
+
+  async acceptInvite(token: string, newPassword: string): Promise<{ access_token: string; refresh_token: string }> {
+    const user = await prisma.user.findUnique({ where: { passwordResetToken: token } });
+
+    if (
+      !user ||
+      user.deletedAt ||
+      !user.passwordResetExpiry ||
+      user.passwordResetExpiry < new Date()
+    ) {
+      throw new BadRequestException('Invite link is invalid or has expired');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+        emailVerifiedAt: new Date(), // auto-verify on invite accept
+      },
+    });
+
+    let gymSlug: string | null = null;
+    if (user.organizationId) {
+      const org = await prisma.organization.findUnique({ where: { id: user.organizationId } });
+      gymSlug = org?.slug ?? null;
+    } else if (user.branchId) {
+      const branch = await prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: { organization: { select: { slug: true } } },
+      });
+      gymSlug = branch?.organization?.slug ?? null;
+    }
+
+    const tokens = this.issueTokens(user.id, user.email, user.role, gymSlug);
+    await this.storeRefreshToken(user.id, tokens.refresh_token);
+    return tokens;
+  }
+
+  // ── Flow 2: Email verification ─────────────────────────────────────────────
+
+  async verifyEmail(token: string): Promise<{ ok: boolean }> {
+    const user = await prisma.user.findUnique({ where: { emailVerifyToken: token } });
+    if (!user || user.deletedAt) throw new BadRequestException('Invalid or expired verification link');
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { emailVerifiedAt: new Date(), emailVerifyToken: null },
+    });
+    return { ok: true };
+  }
+
+  async resendVerification(userId: string): Promise<{ ok: boolean }> {
+    const user = await prisma.user.findUnique({ where: { id: userId } });
+    if (!user || user.emailVerifiedAt) return { ok: true }; // already verified or not found — silent
+
+    const emailVerifyToken = crypto.randomBytes(32).toString('hex');
+    await prisma.user.update({ where: { id: userId }, data: { emailVerifyToken } });
+    await this.mail.sendEmailVerification(user.email, user.name ?? user.email, emailVerifyToken);
+    return { ok: true };
+  }
+
+  // ── Flow 1: Forgot / Reset password ────────────────────────────────────────
+
+  async forgotPassword(email: string): Promise<{ ok: boolean }> {
+    const user = await prisma.user.findUnique({ where: { email } });
+    // Always return ok to avoid email enumeration
+    if (!user || user.deletedAt) return { ok: true };
+
+    const rawToken = crypto.randomBytes(32).toString('hex');
+    const expiry = new Date(Date.now() + 60 * 60 * 1000); // 1 hour
+
+    await prisma.user.update({
+      where: { id: user.id },
+      data: { passwordResetToken: rawToken, passwordResetExpiry: expiry },
+    });
+
+    await this.mail.sendPasswordReset(user.email, user.name ?? user.email, rawToken);
+    return { ok: true };
+  }
+
+  async resetPassword(token: string, newPassword: string): Promise<{ ok: boolean }> {
+    const user = await prisma.user.findUnique({
+      where: { passwordResetToken: token },
+    });
+
+    if (
+      !user ||
+      user.deletedAt ||
+      !user.passwordResetExpiry ||
+      user.passwordResetExpiry < new Date()
+    ) {
+      throw new BadRequestException('Reset link is invalid or has expired');
+    }
+
+    const passwordHash = await bcrypt.hash(newPassword, 10);
+    await prisma.user.update({
+      where: { id: user.id },
+      data: {
+        passwordHash,
+        passwordResetToken: null,
+        passwordResetExpiry: null,
+      },
+    });
+
+    this.mail.sendPasswordChanged(user.email, user.name ?? user.email).catch(() => null);
     return { ok: true };
   }
 
