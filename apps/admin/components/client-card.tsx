@@ -1,9 +1,11 @@
 "use client";
 
+import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Activity, CalendarClock, TrendingUp } from "lucide-react";
+import { AssignProgramDialog } from "./assign-program-dialog";
 
 export interface MyClient {
   id: string;
@@ -66,8 +68,16 @@ interface ClientCardProps {
 
 export function ClientCard({ client, gymSlug }: ClientCardProps): React.JSX.Element {
   const router = useRouter();
+  const [assignOpen, setAssignOpen] = useState(false);
 
   return (
+    <>
+    <AssignProgramDialog
+      open={assignOpen}
+      onClose={() => setAssignOpen(false)}
+      gymSlug={gymSlug}
+      client={{ id: client.id, name: client.name }}
+    />
     <div className="rounded-xl border border-border bg-card p-5 flex flex-col gap-4 hover:border-foreground/20 transition-colors">
       {/* Header */}
       <div className="flex items-center gap-3">
@@ -117,12 +127,12 @@ export function ClientCard({ client, gymSlug }: ClientCardProps): React.JSX.Elem
         <Button
           size="sm"
           className="flex-1 text-xs"
-          disabled
-          title="Coming in Phase 2"
+          onClick={() => setAssignOpen(true)}
         >
           Assign program
         </Button>
       </div>
     </div>
+    </>
   );
 }

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Building2, Dumbbell, LogOut } from "lucide-react";
+import { Building2, Dumbbell, LogOut, Timer } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 interface NavItem {
@@ -24,6 +24,12 @@ const NAV_ITEMS: NavItem[] = [
     label: "Workouts",
     icon: Dumbbell,
     isActive: (p) => p.startsWith("/workouts"),
+  },
+  {
+    href: "/scheduler",
+    label: "Scheduler",
+    icon: Timer,
+    isActive: (p) => p.startsWith("/scheduler"),
   },
 ];
 

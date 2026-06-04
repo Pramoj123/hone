@@ -49,9 +49,10 @@ function nextMonday(): string {
 interface ProgramBuilderProps {
   gymSlug: string;
   existingPlanId?: string;
+  defaultClientId?: string;
 }
 
-export function ProgramBuilder({ gymSlug, existingPlanId }: ProgramBuilderProps): React.JSX.Element {
+export function ProgramBuilder({ gymSlug, existingPlanId, defaultClientId }: ProgramBuilderProps): React.JSX.Element {
   const router = useRouter();
   const [step, setStep] = useState<1 | 2 | 3>(existingPlanId ? 2 : 1);
   const [planId, setPlanId] = useState<string | null>(existingPlanId ?? null);
@@ -106,7 +107,7 @@ export function ProgramBuilder({ gymSlug, existingPlanId }: ProgramBuilderProps)
 
   const step1Form = useForm<Step1Form>({
     resolver: zodResolver(step1Schema),
-    defaultValues: { totalWeeks: 4, startDate: nextMonday() },
+    defaultValues: { clientId: defaultClientId ?? "", totalWeeks: 4, startDate: nextMonday() },
   });
 
   const createPlanMutation = useMutation({

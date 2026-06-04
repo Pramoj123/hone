@@ -231,4 +231,30 @@ export class ProgramPlansService {
     await prisma.programPlan.update({ where: { id }, data: { deletedAt: new Date() } });
     return { ok: true };
   }
+
+  // ── Client-facing (me) ───────────────────────────────────────────────────────
+
+  async findForClient(clientId: string) {
+    return prisma.programPlan.findMany({
+      where: {
+        clientId,
+        deletedAt: null,
+        status: { not: PlanStatus.CANCELLED },
+      },
+      include: {
+        trainer: { select: { id: true, name: true, email: true } },
+        _count: { select: { entries: true } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+  }
+
+  async findOneForClient(id: string, clientId: string) {
+    const plan = await prisma.programPlan.findFirst({
+      where: { id, clientId, deletedAt: null },
+      include: PLAN_INCLUDE_FULL,
+    });
+    if (!plan) throw new NotFoundException('Plan not found');
+    return plan;
+  }
 }

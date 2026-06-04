@@ -33,7 +33,7 @@ export function buildNavItems(gymSlug: string): NavItem[] {
       roles: ["TRAINER"],
     },
     {
-      href: `/${gymSlug}/program-plans/new`,
+      href: `/${gymSlug}/program-plans`,
       label: "Program plans",
       icon: LayoutGrid,
       roles: ["TRAINER", "BRANCH_MANAGER", "ORG_ADMIN", "SUPER_ADMIN"],
