@@ -53,7 +53,6 @@ interface Member {
 const memberSchema = z.object({
   name: z.string().min(1, "Required"),
   email: z.string().email("Invalid email"),
-  password: z.string().min(8, "Min 8 characters"),
   branchId: z.string().min(1, "Required"),
   phone: z.string().optional(),
   dateOfBirth: z.string().optional(),
@@ -91,7 +90,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
   const form = useForm<MemberFormData>({
     resolver: zodResolver(memberSchema),
     defaultValues: {
-      name: "", email: "", password: "", branchId: "",
+      name: "", email: "", branchId: "",
       phone: "", dateOfBirth: "", gender: "", memberNumber: "",
       fitnessGoals: "", referredBy: "", emergencyContactName: "",
       emergencyContactPhone: "", healthNotes: "",
@@ -100,7 +99,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
 
   const mutation = useMutation({
     mutationFn: (data: MemberFormData) =>
-      authApi.post(`/gyms/${gymSlug}/members`, data),
+      authApi.post(`/gyms/${gymSlug}/members/invite`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["members", gymSlug] });
       queryClient.invalidateQueries({ queryKey: ["stats", gymSlug] });
@@ -171,7 +170,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
           </p>
         </div>
         <Button onClick={() => setDialogOpen(true)}>
-          <Plus className="h-4 w-4 mr-2" /> Add member
+          <Plus className="h-4 w-4 mr-2" /> Invite member
         </Button>
       </div>
 
@@ -212,7 +211,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
       }}>
         <DialogContent className="max-w-2xl max-h-[88vh] flex flex-col p-0">
           <DialogHeader className="px-8 pt-8 pb-4 border-b border-border shrink-0">
-            <DialogTitle>Add member</DialogTitle>
+            <DialogTitle>Invite member</DialogTitle>
           </DialogHeader>
           <Form {...form}>
             <form
@@ -239,13 +238,6 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
                     )} />
                   </div>
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    <FormField control={form.control} name="password" render={({ field }) => (
-                      <FormItem>
-                        <FormLabel>Temp password <Req /></FormLabel>
-                        <FormControl><Input type="password" placeholder="Min 8 chars" {...field} /></FormControl>
-                        <FormMessage />
-                      </FormItem>
-                    )} />
                     <FormField control={form.control} name="branchId" render={({ field }) => (
                       <FormItem>
                         <FormLabel>Branch <Req /></FormLabel>
@@ -371,7 +363,7 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
                     Cancel
                   </Button>
                   <Button type="submit" className="flex-1" disabled={mutation.isPending}>
-                    {mutation.isPending ? "Adding…" : "Add member"}
+                    {mutation.isPending ? "Sending invite…" : "Send invite"}
                   </Button>
                 </DialogFooter>
               </div>

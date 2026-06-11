@@ -2,8 +2,10 @@ import { Module } from '@nestjs/common';
 import { ProgramsController } from './programs.controller';
 import { MeProgramsController } from './me-programs.controller';
 import { ProgramsService } from './programs.service';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
+  imports: [NotificationsModule],
   controllers: [ProgramsController, MeProgramsController],
   providers: [ProgramsService],
   exports: [ProgramsService],

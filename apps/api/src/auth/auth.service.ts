@@ -1,4 +1,4 @@
-import { Injectable, ConflictException, UnauthorizedException, BadRequestException } from '@nestjs/common';
+import { Injectable, ConflictException, UnauthorizedException, BadRequestException, Logger } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
@@ -15,6 +15,8 @@ interface AuthTokens {
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private users: UsersService,
     private jwt: JwtService,
@@ -22,6 +24,7 @@ export class AuthService {
   ) {}
 
   async register(dto: RegisterDto): Promise<AuthTokens> {
+    this.logger.log(`register: attempt for ${dto.email}`);
     const existing = await this.users.findByEmail(dto.email);
     if (existing) throw new ConflictException('Email already registered');
 
@@ -34,6 +37,7 @@ export class AuthService {
       name: dto.name,
       emailVerifyToken,
     });
+    this.logger.log(`register: user created id=${user.id} email=${user.email}`);
 
     this.mail.sendEmailVerification(user.email, user.name, emailVerifyToken).catch(() => null);
 
@@ -44,11 +48,20 @@ export class AuthService {
 
   // ── Flow 3: Token storage helpers ──────────────────────────────────────────
 
+  // SHA-256, not bcrypt: bcrypt silently truncates input at 72 bytes, and every
+  // JWT for the same user shares its first 72 bytes (identical header + payload
+  // prefix) — so bcrypt would match ANY of a user's tokens against ANY stored
+  // hash, silently breaking rotation and revocation. A SHA-256 digest is exact
+  // and lets us look tokens up directly via the unique tokenHash index.
+  private hashRefreshToken(rawToken: string): string {
+    return crypto.createHash('sha256').update(rawToken).digest('hex');
+  }
+
   private async storeRefreshToken(userId: string, rawToken: string): Promise<void> {
-    const tokenHash = await bcrypt.hash(rawToken, 8); // cost 8 — fast, not password
+    const tokenHash = this.hashRefreshToken(rawToken);
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
     await prisma.refreshToken.create({ data: { userId, tokenHash, expiresAt } });
-    // Prune old expired tokens for this user (keep last 5 active)
+    // Prune old tokens for this user (keep last 5 active)
     const tokens = await prisma.refreshToken.findMany({
       where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
       orderBy: { createdAt: 'desc' },
@@ -60,36 +73,46 @@ export class AuthService {
   }
 
   async logout(rawRefreshToken: string): Promise<{ ok: boolean }> {
-    // Find the token record by comparing bcrypt hashes
-    const tokens = await prisma.refreshToken.findMany({
-      where: { revokedAt: null, expiresAt: { gt: new Date() } },
-      select: { id: true, tokenHash: true },
-      take: 50, // safety limit
+    const tokenHash = this.hashRefreshToken(rawRefreshToken);
+    await prisma.refreshToken.updateMany({
+      where: { tokenHash, revokedAt: null },
+      data: { revokedAt: new Date() },
     });
-    for (const record of tokens) {
-      const match = await bcrypt.compare(rawRefreshToken, record.tokenHash);
-      if (match) {
-        await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
-        return { ok: true };
-      }
-    }
     return { ok: true }; // silent if not found — idempotent
   }
 
   async validateRefreshToken(rawRefreshToken: string, userId: string): Promise<boolean> {
-    const tokens = await prisma.refreshToken.findMany({
-      where: { userId, revokedAt: null, expiresAt: { gt: new Date() } },
-      select: { id: true, tokenHash: true },
-    });
-    for (const record of tokens) {
-      const match = await bcrypt.compare(rawRefreshToken, record.tokenHash);
-      if (match) {
-        // Rotate — revoke old token
-        await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
-        return true;
-      }
+    const tokenHash = this.hashRefreshToken(rawRefreshToken);
+    const record = await prisma.refreshToken.findUnique({ where: { tokenHash } });
+    if (
+      !record ||
+      record.userId !== userId ||
+      record.revokedAt !== null ||
+      record.expiresAt <= new Date()
+    ) {
+      return false;
     }
-    return false;
+    // Rotate — revoke old token
+    await prisma.refreshToken.update({ where: { id: record.id }, data: { revokedAt: new Date() } });
+    return true;
+  }
+
+  /** Resolve the gym slug for a user — directly via org (ORG_ADMIN) or through their branch. */
+  private async resolveGymSlug(user: { organizationId: string | null; branchId: string | null }): Promise<string | null> {
+    if (user.organizationId) {
+      // ORG_ADMIN: directly linked to org
+      const org = await prisma.organization.findUnique({ where: { id: user.organizationId } });
+      return org?.slug ?? null;
+    }
+    if (user.branchId) {
+      // TRAINER / BRANCH_MANAGER / CLIENT: linked to org through branch
+      const branch = await prisma.branch.findUnique({
+        where: { id: user.branchId },
+        select: { organization: { select: { slug: true } } },
+      });
+      return branch?.organization?.slug ?? null;
+    }
+    return null;
   }
 
   async login(dto: LoginDto): Promise<AuthTokens> {
@@ -99,31 +122,25 @@ export class AuthService {
     const valid = await bcrypt.compare(dto.password, user.passwordHash);
     if (!valid) throw new UnauthorizedException('Invalid credentials');
 
-    let gymSlug: string | null = null;
-    if (user.organizationId) {
-      // ORG_ADMIN: directly linked to org
-      const org = await prisma.organization.findUnique({ where: { id: user.organizationId } });
-      gymSlug = org?.slug ?? null;
-    } else if (user.branchId) {
-      // TRAINER / BRANCH_MANAGER / CLIENT: linked to org through branch
-      const branch = await prisma.branch.findUnique({
-        where: { id: user.branchId },
-        select: { organization: { select: { slug: true } } },
-      });
-      gymSlug = branch?.organization?.slug ?? null;
-    }
+    const gymSlug = await this.resolveGymSlug(user);
 
     const tokens = this.issueTokens(user.id, user.email, user.role, gymSlug);
     await this.storeRefreshToken(user.id, tokens.refresh_token);
     return tokens;
   }
 
-  async refresh(userId: string, email: string, role: string, gymSlug: string | null = null, rawRefreshToken?: string): Promise<AuthTokens> {
+  async refresh(userId: string, email: string, role: string, rawRefreshToken?: string): Promise<AuthTokens> {
     // Validate the incoming refresh token against DB and rotate it
     if (rawRefreshToken) {
       const valid = await this.validateRefreshToken(rawRefreshToken, userId);
       if (!valid) throw new UnauthorizedException('Refresh token is invalid or revoked');
     }
+    // Re-derive gymSlug so refreshed tokens keep their gym context
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { organizationId: true, branchId: true },
+    });
+    const gymSlug = user ? await this.resolveGymSlug(user) : null;
     const tokens = this.issueTokens(userId, email, role, gymSlug);
     await this.storeRefreshToken(userId, tokens.refresh_token);
     return tokens;
@@ -256,17 +273,7 @@ export class AuthService {
       },
     });
 
-    let gymSlug: string | null = null;
-    if (user.organizationId) {
-      const org = await prisma.organization.findUnique({ where: { id: user.organizationId } });
-      gymSlug = org?.slug ?? null;
-    } else if (user.branchId) {
-      const branch = await prisma.branch.findUnique({
-        where: { id: user.branchId },
-        select: { organization: { select: { slug: true } } },
-      });
-      gymSlug = branch?.organization?.slug ?? null;
-    }
+    const gymSlug = await this.resolveGymSlug(user);
 
     const tokens = this.issueTokens(user.id, user.email, user.role, gymSlug);
     await this.storeRefreshToken(user.id, tokens.refresh_token);
@@ -276,13 +283,23 @@ export class AuthService {
   // ── Flow 2: Email verification ─────────────────────────────────────────────
 
   async verifyEmail(token: string): Promise<{ ok: boolean }> {
+    this.logger.log(`verifyEmail: received token=${token.slice(0, 8)}...`);
+
     const user = await prisma.user.findUnique({ where: { emailVerifyToken: token } });
-    if (!user || user.deletedAt) throw new BadRequestException('Invalid or expired verification link');
+
+    if (!user || user.deletedAt) {
+      this.logger.warn(`verifyEmail: no user found for token=${token.slice(0, 8)}... — invalid or expired`);
+      throw new BadRequestException('Invalid or expired verification link');
+    }
+
+    this.logger.log(`verifyEmail: found user id=${user.id} email=${user.email}, setting emailVerifiedAt`);
 
     await prisma.user.update({
       where: { id: user.id },
       data: { emailVerifiedAt: new Date(), emailVerifyToken: null },
     });
+
+    this.logger.log(`verifyEmail: success — email verified for ${user.email}`);
     return { ok: true };
   }
 
@@ -351,7 +368,9 @@ export class AuthService {
       expiresIn: (process.env.JWT_EXPIRES_IN ?? '15m') as never,
     });
 
-    const refresh_token = this.jwt.sign(payload, {
+    // jti makes every refresh token unique — without it, two tokens minted in
+    // the same second are byte-identical, which breaks rotation/revocation.
+    const refresh_token = this.jwt.sign({ ...payload, jti: crypto.randomUUID() }, {
       secret: process.env.JWT_REFRESH_SECRET,
       expiresIn: (process.env.JWT_REFRESH_EXPIRES_IN ?? '7d') as never,
     });

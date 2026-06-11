@@ -4,6 +4,7 @@ import { use, useState, useRef, KeyboardEvent } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { ProgramsTab } from "./programs-tab";
 import { PlansTab } from "./plans-tab";
+import { ProgressTab } from "./progress-tab";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
@@ -90,7 +91,7 @@ interface PageProps {
 
 export default function MemberDetailPage({ params }: PageProps): React.JSX.Element {
   const { gymSlug, memberId } = use(params);
-  const [activeTab, setActiveTab] = useState<"profile" | "programs" | "plans">("profile");
+  const [activeTab, setActiveTab] = useState<"profile" | "programs" | "plans" | "progress">("profile");
   const [editingProfile, setEditingProfile] = useState(false);
   const queryClient = useQueryClient();
 
@@ -181,7 +182,7 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
 
       {/* Tabs */}
       <div className="flex gap-1 border-b border-border">
-        {(["profile", "programs", "plans"] as const).map((tab) => (
+        {(["profile", "programs", "plans", "progress"] as const).map((tab) => (
           <button
             key={tab}
             onClick={() => setActiveTab(tab)}
@@ -200,6 +201,8 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
         <ProgramsTab gymSlug={gymSlug} memberId={memberId} />
       ) : activeTab === "plans" ? (
         <PlansTab gymSlug={gymSlug} memberId={memberId} />
+      ) : activeTab === "progress" ? (
+        <ProgressTab gymSlug={gymSlug} memberId={memberId} memberName={member.name} />
       ) : (
       <>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

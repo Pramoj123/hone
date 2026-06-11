@@ -16,7 +16,10 @@ export function EmailVerificationBanner(): React.JSX.Element | null {
   const { data: me } = useQuery<Me>({
     queryKey: ["me"],
     queryFn: () => authApi.get<Me>("/auth/me"),
-    staleTime: 5 * 60_000,
+    // Always refetch on mount so the banner disappears immediately after the
+    // user clicks the verification link and returns to the dashboard.
+    staleTime: 0,
+    refetchOnWindowFocus: true,
   });
 
   const resendMutation = useMutation({

@@ -14,6 +14,11 @@ import {
   ArrowLeft, Calendar, RotateCcw, CheckCircle2,
   ChevronDown, ChevronUp, Dumbbell, Play, Clock,
 } from "lucide-react";
+import {
+  LineChart, Line, ResponsiveContainer,
+} from "recharts";
+
+// ── Types ────────────────────────────────────────────────────────────────────
 
 interface WorkoutLog {
   id: string;
@@ -60,19 +65,62 @@ interface Program {
   logs: WorkoutLog[];
 }
 
+interface ExerciseLog {
+  completedAt: string;
+  actualSets: number | null;
+  actualReps: string | null;
+  actualWeightKg: number | null;
+  actualDurationMinutes: number | null;
+  rpe: number | null;
+  volumePerSession: number;
+}
+
+interface ExerciseData {
+  workout: { id: string; name: string };
+  logs: ExerciseLog[];
+}
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
 const CATEGORY_EMOJI: Record<string, string> = {
   CARDIO: "🏃", STRENGTH: "🏋️", HIIT: "⚡", CORE: "🎯",
   FLEXIBILITY: "🧘", MOBILITY: "🔄", PLYOMETRICS: "💥",
 };
 
+function rpeLabel(rpe: number): string {
+  if (rpe <= 3) return "Easy";
+  if (rpe <= 5) return "Moderate";
+  if (rpe <= 7) return "Hard";
+  if (rpe <= 9) return "Very hard";
+  return "Max effort";
+}
+
+function rpeBadgeColor(rpe: number): string {
+  if (rpe <= 3) return "bg-green-900/30 text-green-400 border-green-900/40";
+  if (rpe <= 5) return "bg-blue-900/30 text-blue-400 border-blue-900/40";
+  if (rpe <= 7) return "bg-amber-900/30 text-amber-400 border-amber-900/40";
+  return "bg-red-900/30 text-red-400 border-red-900/40";
+}
+
+function formatLogDate(iso: string): string {
+  return new Date(iso).toLocaleDateString("en-GB", {
+    weekday: "short", day: "numeric", month: "short", year: "numeric",
+  });
+}
+
+// ── Page ─────────────────────────────────────────────────────────────────────
+
 interface PageProps {
   params: Promise<{ programId: string }>;
 }
+
+type Tab = "overview" | "history";
 
 export default function ProgramDetailPage({ params }: PageProps): React.JSX.Element {
   const { programId } = use(params);
   const router = useRouter();
   const queryClient = useQueryClient();
+  const [tab, setTab] = useState<Tab>("overview");
   const [showManualLog, setShowManualLog] = useState(false);
   const [logForm, setLogForm] = useState({
     actualSets: "", actualReps: "", actualWeightKg: "",
@@ -84,11 +132,19 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
     queryFn: () => authApi.get<Program>(`/me/programs/${programId}`),
   });
 
+  const { data: exerciseData, isLoading: historyLoading } = useQuery<ExerciseData>({
+    queryKey: ["progress", "exercise", program?.workout.id],
+    queryFn: () => authApi.get<ExerciseData>(`/me/progress/exercise/${program!.workout.id}`),
+    staleTime: 5 * 60 * 1000,
+    enabled: tab === "history" && !!program?.workout.id,
+  });
+
   const logMutation = useMutation({
     mutationFn: (data: object) => authApi.post(`/me/programs/${programId}/logs`, data),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["me-program", programId] });
       queryClient.invalidateQueries({ queryKey: ["me-programs-all"] });
+      queryClient.invalidateQueries({ queryKey: ["progress", "exercise", program?.workout.id] });
       setShowManualLog(false);
       setLogForm({ actualSets: "", actualReps: "", actualWeightKg: "", actualDurationMinutes: "", rpe: 0, notes: "" });
       toast.success("Workout logged!");
@@ -116,10 +172,10 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
   const displayReps = program.targetReps ?? (workout.reps ? parseInt(workout.reps) : null);
   const displayDuration = program.targetDurationMinutes ?? workout.durationMinutes;
   const canLog = program.status === "ACTIVE" || program.status === "PENDING";
-  const lastLog = program.logs[0] ?? null;
 
   return (
-    <div className="p-4 md:p-8 max-w-2xl space-y-6">
+    // pb-24 leaves room for the sticky bottom bar on all screen sizes
+    <div className="p-4 md:p-8 max-w-2xl space-y-6 pb-28">
       {/* Breadcrumb */}
       <nav className="flex items-center gap-1.5 text-sm text-muted-foreground">
         <Link href="/dashboard/programs" className="flex items-center gap-1 hover:text-foreground transition-colors">
@@ -162,238 +218,421 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
         </div>
       </div>
 
-      {/* Targets */}
-      {(displaySets || displayReps || displayDuration || program.targetWeightKg) && (
-        <Card>
-          <CardHeader><CardTitle>Your targets</CardTitle></CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-              {displaySets && <Metric label="Sets" value={String(displaySets)} />}
-              {displayReps && <Metric label="Reps" value={String(displayReps)} />}
-              {program.targetWeightKg && <Metric label="Weight" value={`${program.targetWeightKg} kg`} />}
-              {displayDuration && <Metric label="Duration" value={`${displayDuration} min`} />}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Previous session */}
-      {lastLog && (
-        <div className="rounded-xl border border-border bg-card px-5 py-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Last session</p>
-          <div className="flex items-center gap-4 flex-wrap text-sm">
-            {lastLog.actualSets && <span className="font-semibold text-foreground">{lastLog.actualSets} sets</span>}
-            {lastLog.actualWeightKg && <span className="text-foreground">{lastLog.actualWeightKg} kg</span>}
-            {lastLog.actualDurationMinutes && (
-              <span className="flex items-center gap-1 text-muted-foreground">
-                <Clock className="h-3.5 w-3.5" />{lastLog.actualDurationMinutes} min
-              </span>
-            )}
-            {lastLog.rpe && (
-              <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
-                RPE {lastLog.rpe}/10
-              </span>
-            )}
-          </div>
-          {lastLog.sets && lastLog.sets.length > 0 && (
-            <div className="mt-3 flex gap-2 flex-wrap">
-              {lastLog.sets.filter(setItem => setItem.completed).map((setItem) => (
-                <span key={setItem.setNumber} className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
-                  {setItem.weightKg}kg × {setItem.reps}
-                </span>
-              ))}
-            </div>
-          )}
-          <p className="text-xs text-muted-foreground mt-2">
-            {new Date(lastLog.completedAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
-          </p>
-        </div>
-      )}
-
-      {/* Trainer notes */}
-      {program.notes && (
-        <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
-          <p className="text-xs font-semibold text-primary mb-1.5">Trainer note</p>
-          <p className="text-sm text-foreground leading-relaxed">{program.notes}</p>
-        </div>
-      )}
-
-      {/* Primary CTAs */}
-      {canLog && (
-        <div className="flex flex-col gap-3">
-          <Button
-            size="lg"
-            className="w-full h-14 text-base font-bold gap-2"
-            onClick={() => router.push(`/dashboard/programs/${programId}/session`)}
-          >
-            <Play className="h-5 w-5 fill-current" />
-            Start workout
-          </Button>
+      {/* ── Tab bar ─────────────────────────────────────────────────────── */}
+      <div className="flex border-b border-border -mb-2">
+        {(["overview", "history"] as Tab[]).map((t) => (
           <button
-            onClick={() => setShowManualLog((prev) => !prev)}
-            className="flex items-center justify-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+            key={t}
+            onClick={() => setTab(t)}
+            className={`px-4 py-2 text-sm font-medium border-b-2 -mb-px transition-colors capitalize ${
+              tab === t
+                ? "border-primary text-foreground"
+                : "border-transparent text-muted-foreground hover:text-foreground"
+            }`}
           >
-            {showManualLog ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-            Log manually
+            {t}
           </button>
-        </div>
-      )}
+        ))}
+      </div>
 
-      {/* Manual log form */}
-      {canLog && showManualLog && (
-        <div className="rounded-xl border border-border bg-card px-5 py-5 space-y-4">
-          <p className="text-sm font-semibold text-foreground">Log workout manually</p>
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Actual sets</label>
-              <Input type="number" placeholder={displaySets ? String(displaySets) : "—"} value={logForm.actualSets} onChange={(event) => setLogForm((prev) => ({ ...prev, actualSets: event.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Actual reps</label>
-              <Input placeholder={displayReps ? String(displayReps) : "e.g. 10"} value={logForm.actualReps} onChange={(event) => setLogForm((prev) => ({ ...prev, actualReps: event.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Weight used (kg)</label>
-              <Input type="number" placeholder="Optional" value={logForm.actualWeightKg} onChange={(event) => setLogForm((prev) => ({ ...prev, actualWeightKg: event.target.value }))} />
-            </div>
-            <div>
-              <label className="text-xs text-muted-foreground block mb-1.5">Duration (min)</label>
-              <Input type="number" placeholder={displayDuration ? String(displayDuration) : "Optional"} value={logForm.actualDurationMinutes} onChange={(event) => setLogForm((prev) => ({ ...prev, actualDurationMinutes: event.target.value }))} />
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1.5">Effort (RPE {logForm.rpe > 0 ? logForm.rpe : "—"}/10)</label>
-            <div className="flex gap-1.5">
-              {Array.from({ length: 10 }, (_, index) => index + 1).map((rpeValue) => (
-                <button key={rpeValue} type="button" onClick={() => setLogForm((prev) => ({ ...prev, rpe: rpeValue }))}
-                  className={`flex-1 h-8 rounded-md text-xs font-bold transition-colors ${rpeValue <= logForm.rpe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
-                  {rpeValue}
-                </button>
-              ))}
-            </div>
-          </div>
-          <div>
-            <label className="text-xs text-muted-foreground block mb-1.5">Notes</label>
-            <textarea rows={2} className="flex w-full rounded-md border border-border bg-input px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
-              placeholder="How did it go?" value={logForm.notes} onChange={(event) => setLogForm((prev) => ({ ...prev, notes: event.target.value }))} />
-          </div>
-          <Button onClick={submitLog} disabled={logMutation.isPending} className="w-full">
-            <CheckCircle2 className="h-4 w-4 mr-2" />
-            {logMutation.isPending ? "Saving…" : "Save log"}
-          </Button>
-        </div>
-      )}
-
-      {/* About */}
-      {workout.description && (
-        <Card>
-          <CardHeader><CardTitle>About this exercise</CardTitle></CardHeader>
-          <CardContent><p className="text-sm text-muted-foreground leading-relaxed">{workout.description}</p></CardContent>
-        </Card>
-      )}
-
-      {/* Muscles + Equipment */}
-      {(workout.muscleGroups?.length > 0 || workout.equipment?.length > 0) && (
-        <div className="grid grid-cols-2 gap-4">
-          {workout.muscleGroups?.length > 0 && (
+      {/* ── Overview tab ────────────────────────────────────────────────── */}
+      {tab === "overview" && (
+        <div className="space-y-6">
+          {/* Targets */}
+          {(displaySets || displayReps || displayDuration || program.targetWeightKg) && (
             <Card>
-              <CardHeader><CardTitle>Muscles</CardTitle></CardHeader>
+              <CardHeader><CardTitle>Your targets</CardTitle></CardHeader>
               <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {workout.muscleGroups.map((muscle) => <span key={muscle} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{muscle}</span>)}
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+                  {displaySets && <Metric label="Sets" value={String(displaySets)} />}
+                  {displayReps && <Metric label="Reps" value={String(displayReps)} />}
+                  {program.targetWeightKg && <Metric label="Weight" value={`${program.targetWeightKg} kg`} />}
+                  {displayDuration && <Metric label="Duration" value={`${displayDuration} min`} />}
                 </div>
               </CardContent>
             </Card>
           )}
-          {workout.equipment?.length > 0 && (
-            <Card>
-              <CardHeader><CardTitle>Equipment</CardTitle></CardHeader>
-              <CardContent>
-                <div className="flex flex-wrap gap-1.5">
-                  {workout.equipment.map((equipItem) => <span key={equipItem} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{equipItem}</span>)}
-                </div>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
 
-      {/* Instructions */}
-      {steps.length > 0 && (
-        <Card>
-          <CardHeader><CardTitle>How to perform</CardTitle></CardHeader>
-          <CardContent>
-            <ol className="space-y-3">
-              {steps.map((step, index) => (
-                <li key={index} className="flex gap-3">
-                  <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{index + 1}</span>
-                  <p className="text-sm text-foreground leading-relaxed pt-0.5">{step.replace(/^\d+\.\s*/, "")}</p>
-                </li>
-              ))}
-            </ol>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Tips */}
-      {workout.tips && (
-        <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-5 py-4">
-          <p className="text-xs font-semibold text-yellow-400 mb-1.5">Form tips</p>
-          <p className="text-sm text-foreground leading-relaxed">{workout.tips}</p>
-        </div>
-      )}
-
-      {/* Video */}
-      {workout.videoUrl && (
-        <Card>
-          <CardHeader><CardTitle>Video demonstration</CardTitle></CardHeader>
-          <CardContent>
-            {workout.videoUrl.includes("youtube") || workout.videoUrl.includes("youtu.be") ? (
-              <div className="aspect-video rounded-lg overflow-hidden bg-muted">
-                <iframe src={workout.videoUrl.replace("watch?v=", "embed/")} className="w-full h-full"
-                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-              </div>
-            ) : (
-              <video src={workout.videoUrl} controls className="w-full rounded-lg bg-black" />
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Log history */}
-      {program.logs.length > 0 && (
-        <section>
-          <h2 className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Session history</h2>
-          <div className="space-y-2">
-            {program.logs.map((log) => (
-              <div key={log.id} className="rounded-xl border border-border bg-card px-5 py-4 text-sm">
-                <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium text-foreground">
-                    {new Date(log.completedAt).toLocaleDateString("en-GB", { weekday: "short", day: "numeric", month: "short" })}
+          {/* Previous session quick-view */}
+          {program.logs[0] && (
+            <div className="rounded-xl border border-border bg-card px-5 py-4">
+              <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground mb-3">Last session</p>
+              <div className="flex items-center gap-4 flex-wrap text-sm">
+                {program.logs[0].actualSets && <span className="font-semibold text-foreground">{program.logs[0].actualSets} sets</span>}
+                {program.logs[0].actualWeightKg && <span className="text-foreground">{program.logs[0].actualWeightKg} kg</span>}
+                {program.logs[0].actualDurationMinutes && (
+                  <span className="flex items-center gap-1 text-muted-foreground">
+                    <Clock className="h-3.5 w-3.5" />{program.logs[0].actualDurationMinutes} min
                   </span>
-                  {log.rpe && <span className="text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">RPE {log.rpe}/10</span>}
-                </div>
-                <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
-                  {log.actualSets && <span>{log.actualSets} sets</span>}
-                  {log.actualWeightKg && <span>{log.actualWeightKg} kg avg</span>}
-                  {log.actualDurationMinutes && <span>{log.actualDurationMinutes} min</span>}
-                </div>
-                {log.sets && log.sets.length > 0 && (
-                  <div className="mt-2 flex gap-1.5 flex-wrap">
-                    {log.sets.filter(setItem => setItem.completed).map((setItem) => (
-                      <span key={setItem.setNumber} className="text-xs bg-muted px-2 py-0.5 rounded text-muted-foreground">{setItem.weightKg}kg × {setItem.reps}</span>
-                    ))}
-                  </div>
                 )}
-                {log.notes && <p className="text-xs text-muted-foreground mt-2 italic">{log.notes}</p>}
+                {program.logs[0].rpe && (
+                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full bg-primary/10 text-primary font-semibold">
+                    RPE {program.logs[0].rpe}/10
+                  </span>
+                )}
               </div>
-            ))}
+              {program.logs[0].sets && program.logs[0].sets.length > 0 && (
+                <div className="mt-3 flex gap-2 flex-wrap">
+                  {program.logs[0].sets.filter(s => s.completed).map((s) => (
+                    <span key={s.setNumber} className="text-xs bg-muted px-2 py-1 rounded text-muted-foreground">
+                      {s.weightKg}kg × {s.reps}
+                    </span>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-2">
+                {new Date(program.logs[0].completedAt).toLocaleDateString("en-GB", { weekday: "long", day: "numeric", month: "short" })}
+              </p>
+            </div>
+          )}
+
+          {/* Trainer notes */}
+          {program.notes && (
+            <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
+              <p className="text-xs font-semibold text-primary mb-1.5">Trainer note</p>
+              <p className="text-sm text-foreground leading-relaxed">{program.notes}</p>
+            </div>
+          )}
+
+          {/* Manual log toggle + form */}
+          {canLog && (
+            <>
+              <button
+                onClick={() => setShowManualLog((prev) => !prev)}
+                className="flex items-center gap-2 text-sm text-muted-foreground hover:text-foreground transition-colors"
+              >
+                {showManualLog ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
+                Log manually
+              </button>
+
+              {showManualLog && (
+                <div className="rounded-xl border border-border bg-card px-5 py-5 space-y-4">
+                  <p className="text-sm font-semibold text-foreground">Log workout manually</p>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1.5">Actual sets</label>
+                      <Input type="number" placeholder={displaySets ? String(displaySets) : "—"} value={logForm.actualSets} onChange={(e) => setLogForm((p) => ({ ...p, actualSets: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1.5">Actual reps</label>
+                      <Input placeholder={displayReps ? String(displayReps) : "e.g. 10"} value={logForm.actualReps} onChange={(e) => setLogForm((p) => ({ ...p, actualReps: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1.5">Weight used (kg)</label>
+                      <Input type="number" placeholder="Optional" value={logForm.actualWeightKg} onChange={(e) => setLogForm((p) => ({ ...p, actualWeightKg: e.target.value }))} />
+                    </div>
+                    <div>
+                      <label className="text-xs text-muted-foreground block mb-1.5">Duration (min)</label>
+                      <Input type="number" placeholder={displayDuration ? String(displayDuration) : "Optional"} value={logForm.actualDurationMinutes} onChange={(e) => setLogForm((p) => ({ ...p, actualDurationMinutes: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1.5">Effort (RPE {logForm.rpe > 0 ? logForm.rpe : "—"}/10)</label>
+                    <div className="flex gap-1.5">
+                      {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+                        <button key={v} type="button" onClick={() => setLogForm((p) => ({ ...p, rpe: v }))}
+                          className={`flex-1 h-8 rounded-md text-xs font-bold transition-colors ${v <= logForm.rpe ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground hover:bg-muted/70"}`}>
+                          {v}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div>
+                    <label className="text-xs text-muted-foreground block mb-1.5">Notes</label>
+                    <textarea rows={2}
+                      className="flex w-full rounded-md border border-border bg-input px-3 py-2 text-sm resize-none placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                      placeholder="How did it go?" value={logForm.notes} onChange={(e) => setLogForm((p) => ({ ...p, notes: e.target.value }))} />
+                  </div>
+                  <Button onClick={submitLog} disabled={logMutation.isPending} className="w-full">
+                    <CheckCircle2 className="h-4 w-4 mr-2" />
+                    {logMutation.isPending ? "Saving…" : "Save log"}
+                  </Button>
+                </div>
+              )}
+            </>
+          )}
+
+          {/* About */}
+          {workout.description && (
+            <Card>
+              <CardHeader><CardTitle>About this exercise</CardTitle></CardHeader>
+              <CardContent><p className="text-sm text-muted-foreground leading-relaxed">{workout.description}</p></CardContent>
+            </Card>
+          )}
+
+          {/* Muscles + Equipment */}
+          {(workout.muscleGroups?.length > 0 || workout.equipment?.length > 0) && (
+            <div className="grid grid-cols-2 gap-4">
+              {workout.muscleGroups?.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>Muscles</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1.5">
+                      {workout.muscleGroups.map((m) => <span key={m} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{m}</span>)}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+              {workout.equipment?.length > 0 && (
+                <Card>
+                  <CardHeader><CardTitle>Equipment</CardTitle></CardHeader>
+                  <CardContent>
+                    <div className="flex flex-wrap gap-1.5">
+                      {workout.equipment.map((eq) => <span key={eq} className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground">{eq}</span>)}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </div>
+          )}
+
+          {/* Instructions */}
+          {steps.length > 0 && (
+            <Card>
+              <CardHeader><CardTitle>How to perform</CardTitle></CardHeader>
+              <CardContent>
+                <ol className="space-y-3">
+                  {steps.map((step, i) => (
+                    <li key={i} className="flex gap-3">
+                      <span className="flex-shrink-0 h-6 w-6 rounded-full bg-primary/10 text-primary text-xs font-bold flex items-center justify-center">{i + 1}</span>
+                      <p className="text-sm text-foreground leading-relaxed pt-0.5">{step.replace(/^\d+\.\s*/, "")}</p>
+                    </li>
+                  ))}
+                </ol>
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Tips */}
+          {workout.tips && (
+            <div className="rounded-xl border border-yellow-500/20 bg-yellow-500/5 px-5 py-4">
+              <p className="text-xs font-semibold text-yellow-400 mb-1.5">Form tips</p>
+              <p className="text-sm text-foreground leading-relaxed">{workout.tips}</p>
+            </div>
+          )}
+
+          {/* Video */}
+          {workout.videoUrl && (
+            <Card>
+              <CardHeader><CardTitle>Video demonstration</CardTitle></CardHeader>
+              <CardContent>
+                {workout.videoUrl.includes("youtube") || workout.videoUrl.includes("youtu.be") ? (
+                  <div className="aspect-video rounded-lg overflow-hidden bg-muted">
+                    <iframe src={workout.videoUrl.replace("watch?v=", "embed/")} className="w-full h-full"
+                      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
+                  </div>
+                ) : (
+                  <video src={workout.videoUrl} controls className="w-full rounded-lg bg-black" />
+                )}
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      )}
+
+      {/* ── History tab ─────────────────────────────────────────────────── */}
+      {tab === "history" && (
+        <HistoryTab
+          workoutId={workout.id}
+          data={exerciseData}
+          isLoading={historyLoading}
+        />
+      )}
+
+      {/* ── Sticky bottom CTA bar ───────────────────────────────────────── */}
+      {canLog && (
+        <div className="fixed bottom-16 md:bottom-0 left-0 right-0 md:left-56 z-20 border-t border-border bg-background/95 backdrop-blur-sm px-4 py-3">
+          <div className="max-w-2xl mx-auto">
+            <Button
+              size="lg"
+              className="w-full h-12 text-base font-bold gap-2"
+              onClick={() => router.push(`/dashboard/programs/${programId}/session`)}
+            >
+              <Play className="h-4 w-4 fill-current" />
+              Start workout
+            </Button>
           </div>
-        </section>
+        </div>
       )}
     </div>
   );
 }
+
+// ── History tab component ─────────────────────────────────────────────────────
+
+function HistoryTab({
+  workoutId,
+  data,
+  isLoading,
+}: {
+  workoutId: string;
+  data: ExerciseData | undefined;
+  isLoading: boolean;
+}): React.JSX.Element {
+  if (isLoading) {
+    return (
+      <div className="space-y-4">
+        <Skeleton className="h-32 rounded-xl" />
+        <Skeleton className="h-24 rounded-xl" />
+        <Skeleton className="h-20 rounded-xl" />
+        <Skeleton className="h-20 rounded-xl" />
+      </div>
+    );
+  }
+
+  const logs = data?.logs ?? [];
+  const sorted = [...logs].sort(
+    (a, b) => new Date(b.completedAt).getTime() - new Date(a.completedAt).getTime()
+  );
+  const lastLog = sorted[0] ?? null;
+
+  // Last 6 sessions for the sparkline, sorted oldest→newest for the chart
+  const last6 = [...sorted].slice(0, 6).reverse();
+  const sparkData = last6.map((l, i) => ({ i, volume: Math.round(l.volumePerSession) }));
+
+  if (logs.length === 0) {
+    return (
+      <div className="py-20 text-center border-2 border-dashed border-border rounded-xl text-muted-foreground text-sm">
+        No previous sessions — this will be your first time!
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* Mini sparkline — volume trend, last 6 sessions */}
+      <div className="rounded-xl border border-border bg-card px-5 py-4">
+        <p className="text-xs font-semibold text-muted-foreground mb-3">
+          Volume trend — last {Math.min(6, last6.length)} sessions
+        </p>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={sparkData} margin={{ top: 8, right: 8, bottom: 8, left: 8 }}>
+            <Line
+              type="monotone"
+              dataKey="volume"
+              stroke="#1D9E75"
+              strokeWidth={2.5}
+              dot={false}
+              isAnimationActive={false}
+            />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Last time callout */}
+      {lastLog && (
+        <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4 space-y-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-primary">Last time</p>
+          <p className="text-xs text-muted-foreground">{formatLogDate(lastLog.completedAt)}</p>
+          {(lastLog.actualWeightKg || lastLog.actualReps) && (
+            <p className="text-sm text-foreground font-medium">
+              You lifted{" "}
+              {lastLog.actualWeightKg != null && (
+                <span className="text-primary font-bold">{lastLog.actualWeightKg} kg</span>
+              )}
+              {lastLog.actualWeightKg != null && lastLog.actualReps && " for "}
+              {lastLog.actualReps && (
+                <span className="text-primary font-bold">{lastLog.actualReps} reps</span>
+              )}
+            </p>
+          )}
+          {lastLog.rpe != null && (
+            <p className="text-sm text-foreground">
+              Felt:{" "}
+              <span className={`font-semibold inline-flex items-center gap-1 text-xs px-2 py-0.5 rounded-full border ${rpeBadgeColor(lastLog.rpe)}`}>
+                {rpeLabel(lastLog.rpe)} ({lastLog.rpe}/10)
+              </span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Full log history */}
+      <div className="space-y-2">
+        <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground pt-2">
+          All sessions ({sorted.length})
+        </p>
+        {sorted.map((log, i) => (
+          <LogEntry key={i} log={log} />
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Log entry with expandable notes ──────────────────────────────────────────
+
+function LogEntry({ log }: { log: ExerciseLog }): React.JSX.Element {
+  const [expanded, setExpanded] = useState(false);
+
+  const parts: string[] = [];
+  if (log.actualSets) parts.push(String(log.actualSets));
+  if (log.actualReps) parts.push(log.actualReps);
+  if (log.actualWeightKg != null) parts.push(`${log.actualWeightKg} kg`);
+  const setsLabel = parts.join(" × ");
+
+  const volume = Math.round(log.volumePerSession);
+
+  return (
+    <div className="rounded-xl border border-border bg-card px-5 py-4 text-sm">
+      <div className="flex items-start justify-between gap-3">
+        <div className="space-y-1.5 flex-1 min-w-0">
+          <p className="font-medium text-foreground">
+            {formatLogDate(log.completedAt)}
+          </p>
+
+          {setsLabel && (
+            <p className="text-sm text-foreground font-mono">{setsLabel}</p>
+          )}
+
+          <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+            {volume > 0 && (
+              <span className="flex items-center gap-1">
+                <Dumbbell className="h-3 w-3" />
+                {volume.toLocaleString()} kg total
+              </span>
+            )}
+            {log.actualDurationMinutes && (
+              <span className="flex items-center gap-1">
+                <Clock className="h-3 w-3" />
+                {log.actualDurationMinutes} min
+              </span>
+            )}
+          </div>
+        </div>
+
+        {log.rpe != null && (
+          <span className={`shrink-0 text-xs px-2 py-0.5 rounded-full border font-semibold ${rpeBadgeColor(log.rpe)}`}>
+            {rpeLabel(log.rpe)}
+          </span>
+        )}
+      </div>
+
+      {/* Notes — truncated, tap to expand */}
+      {/* Note: notes field isn't returned by the exercise endpoint, shown if present */}
+      {"notes" in log && (log as ExerciseLog & { notes?: string | null }).notes && (
+        <div className="mt-2">
+          <p
+            className={`text-xs text-muted-foreground italic leading-relaxed ${expanded ? "" : "truncate"}`}
+            onClick={() => setExpanded((v) => !v)}
+          >
+            {(log as ExerciseLog & { notes?: string }).notes}
+          </p>
+          {!expanded && (
+            <button
+              onClick={() => setExpanded(true)}
+              className="text-xs text-primary hover:underline mt-0.5"
+            >
+              show more
+            </button>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ── Sub-components ────────────────────────────────────────────────────────────
 
 function Metric({ label, value }: { label: string; value: string }): React.JSX.Element {
   return (

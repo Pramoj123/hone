@@ -9,6 +9,7 @@
     "dev:api": "turbo run dev --filter=@hone/api",
     "dev:web": "turbo run dev --filter=@hone/web",
     "dev:admin": "turbo run dev --filter=@hone/admin",
+    "dev:marketing": "turbo run dev --filter=@hone/marketing",
     "db:generate": "pnpm --filter @hone/database db:generate",
     "db:migrate": "pnpm --filter @hone/database db:migrate",
     "db:studio": "pnpm --filter @hone/database db:studio",

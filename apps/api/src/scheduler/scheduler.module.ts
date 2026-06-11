@@ -6,6 +6,7 @@ import { SchedulerProcessor } from './scheduler.processor';
 import { SchedulerCron } from './scheduler.cron';
 import { SchedulerAdminController } from './scheduler-admin.controller';
 import { QUEUE_NAME } from './scheduler.processor';
+import { NotificationsModule } from '../notifications/notifications.module';
 
 @Module({
   imports: [
@@ -32,6 +33,8 @@ import { QUEUE_NAME } from './scheduler.processor';
 
     // Register the queue — shared between cron, processor, and admin controller
     BullModule.registerQueue({ name: QUEUE_NAME }),
+
+    NotificationsModule,
   ],
   providers: [SchedulerService, SchedulerProcessor, SchedulerCron],
   controllers: [SchedulerAdminController],

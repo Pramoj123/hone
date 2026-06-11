@@ -2,9 +2,11 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { prisma, Role, AssessmentStatus } from '@hone/database';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateAssessmentDto } from './dto/create-assessment.dto';
 import type { ListAssessmentsDto } from './dto/list-assessments.dto';
 import type { ReviewAssessmentDto } from './dto/review-assessment.dto';
@@ -29,6 +31,10 @@ interface TemplateField {
 
 @Injectable()
 export class AssessmentsService {
+  private readonly logger = new Logger(AssessmentsService.name);
+
+  constructor(private readonly notifications: NotificationsService) {}
+
   // ── Staff — list ─────────────────────────────────────────────────────────
 
   async findAll(
@@ -120,7 +126,7 @@ export class AssessmentsService {
 
     const trainerId = dto.trainerId ?? user.id;
 
-    return prisma.assessment.create({
+    const assessment = await prisma.assessment.create({
       data: {
         templateId: dto.templateId,
         clientId: dto.clientId,
@@ -135,6 +141,11 @@ export class AssessmentsService {
       },
       include: ASSESSMENT_INCLUDE,
     });
+
+    this.notifications.onAssessmentAssigned(assessment.id)
+      .catch((err) => this.logger.error('onAssessmentAssigned failed', err));
+
+    return assessment;
   }
 
   // ── Staff — review ───────────────────────────────────────────────────────
@@ -245,7 +256,7 @@ export class AssessmentsService {
       );
     }
 
-    return prisma.assessment.update({
+    const submitted = await prisma.assessment.update({
       where: { id },
       data: {
         responses: dto.responses as object,
@@ -254,6 +265,11 @@ export class AssessmentsService {
       },
       include: ASSESSMENT_INCLUDE,
     });
+
+    this.notifications.onAssessmentSubmitted(submitted.id)
+      .catch((err) => this.logger.error('onAssessmentSubmitted failed', err));
+
+    return submitted;
   }
 
   // ── Helpers ──────────────────────────────────────────────────────────────

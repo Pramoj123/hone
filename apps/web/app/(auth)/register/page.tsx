@@ -38,7 +38,7 @@ export default function RegisterPage(): React.JSX.Element {
       await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: res.access_token }),
+        body: JSON.stringify({ access_token: res.access_token, refresh_token: res.refresh_token }),
       });
     },
     onSuccess: (): void => {

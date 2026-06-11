@@ -2,10 +2,11 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { prisma, Role, ProgramStatus } from '@hone/database';
-import { MailService } from '../mail/mail.service';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateProgramDto } from './dto/create-program.dto';
 import type { ListProgramsDto } from './dto/list-programs.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
@@ -42,7 +43,9 @@ const PROGRAM_INCLUDE = {
 
 @Injectable()
 export class ProgramsService {
-  constructor(private mail: MailService) {}
+  private readonly logger = new Logger(ProgramsService.name);
+
+  constructor(private readonly notifications: NotificationsService) {}
 
   private branchFilter(user: CurrentUserType) {
     if (
@@ -175,14 +178,8 @@ export class ProgramsService {
       include: PROGRAM_INCLUDE,
     });
 
-    this.mail.sendProgramAssigned({
-      clientEmail: program.client.email,
-      clientName: program.client.name,
-      trainerName: program.trainer?.name ?? 'Your trainer',
-      workoutName: program.workout.name,
-      scheduledDate: dto.scheduledDate,
-      notes: dto.notes,
-    }).catch(() => null);
+    this.notifications.onProgramAssigned(program.id)
+      .catch((err) => this.logger.error('onProgramAssigned failed', err));
 
     return program;
   }

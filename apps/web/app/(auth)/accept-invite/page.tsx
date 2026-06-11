@@ -10,6 +10,7 @@ import { CheckCircle2, AlertCircle } from "lucide-react";
 
 interface AcceptResponse {
   access_token: string;
+  refresh_token: string;
 }
 
 export default function AcceptInvitePage(): React.JSX.Element {
@@ -29,7 +30,7 @@ export default function AcceptInvitePage(): React.JSX.Element {
       await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: res.access_token }),
+        body: JSON.stringify({ access_token: res.access_token, refresh_token: res.refresh_token }),
       });
       setDone(true);
       setTimeout(() => router.replace("/dashboard"), 1500);

@@ -1,4 +1,4 @@
-import { Controller, Post, Get, Patch, Body, UseGuards, Query } from '@nestjs/common';
+import { Controller, Post, Get, Patch, Body, UseGuards, Query, Logger } from '@nestjs/common';
 import { IsOptional, IsString, IsArray, IsNumber, MinLength } from 'class-validator';
 import { Type } from 'class-transformer';
 import { AuthService } from './auth.service';
@@ -46,6 +46,8 @@ class ResetPasswordDto {
 
 @Controller('auth')
 export class AuthController {
+  private readonly logger = new Logger(AuthController.name);
+
   constructor(private auth: AuthService) {}
 
   @Post('register')
@@ -61,7 +63,7 @@ export class AuthController {
   @UseGuards(JwtRefreshGuard)
   @Post('refresh')
   async refresh(@CurrentUser() user: CurrentUserType, @Body('refresh_token') rawToken?: string): Promise<{ access_token: string; refresh_token: string }> {
-    return this.auth.refresh(user.id, user.email, String(user.role), null, rawToken);
+    return this.auth.refresh(user.id, user.email, String(user.role), rawToken);
   }
 
   // ── Flow 3: Logout (revoke refresh token) ──────────────────────────────────
@@ -118,6 +120,7 @@ export class AuthController {
 
   @Get('verify-email')
   verifyEmail(@Query('token') token: string) {
+    this.logger.log(`GET /auth/verify-email — token present: ${!!token}, length: ${token?.length ?? 0}`);
     return this.auth.verifyEmail(token);
   }
 

@@ -2,9 +2,11 @@ import {
   Injectable,
   BadRequestException,
   ForbiddenException,
+  Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { prisma, Role, PlanStatus, ProgramStatus } from '@hone/database';
+import { NotificationsService } from '../notifications/notifications.service';
 import type { CreatePlanDto } from './dto/create-plan.dto';
 import type { ListPlansDto } from './dto/list-plans.dto';
 import type { UpdateEntriesDto } from './dto/update-entries.dto';
@@ -42,6 +44,10 @@ const PLAN_INCLUDE_FULL = {
 
 @Injectable()
 export class ProgramPlansService {
+  private readonly logger = new Logger(ProgramPlansService.name);
+
+  constructor(private readonly notifications: NotificationsService) {}
+
   private async resolveOrgId(user: CurrentUserType): Promise<string> {
     if (user.organizationId) return user.organizationId;
     if (user.branchId) {
@@ -175,6 +181,7 @@ export class ProgramPlansService {
     }
 
     const startDate = new Date((plan as any).startDate);
+    const txStart = new Date();
 
     const programs = await prisma.$transaction(async (tx) => {
       const created = await tx.workoutProgram.createMany({
@@ -210,6 +217,22 @@ export class ProgramPlansService {
       where: { id },
       include: PLAN_INCLUDE_SUMMARY,
     });
+
+    // Fire notifications for each newly created program (fire-and-forget)
+    prisma.workoutProgram.findMany({
+      where: {
+        clientId: (plan as any).clientId,
+        createdAt: { gte: txStart },
+      },
+      select: { id: true },
+    }).then((newPrograms) => {
+      Promise.allSettled(
+        newPrograms.map((p) =>
+          this.notifications.onProgramAssigned(p.id)
+            .catch((err) => this.logger.error('onProgramAssigned failed (plan activate)', err)),
+        ),
+      );
+    }).catch((err) => this.logger.error('activate: failed to query new programs for notifications', err));
 
     return { plan: updatedPlan, programsCreated: programs.count };
   }

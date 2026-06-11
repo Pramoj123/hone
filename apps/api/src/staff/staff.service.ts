@@ -57,7 +57,9 @@ export class StaffService {
 
     return prisma.user.findMany({
       where: {
-        branch: { organizationId },
+        // Staff may be linked via their branch OR directly via organizationId
+        // (e.g. invited staff who haven't been assigned a branch yet)
+        OR: [{ branch: { organizationId } }, { organizationId }],
         ...roleWhere,
         ...branchWhere,
         deletedAt: null,
@@ -107,7 +109,7 @@ export class StaffService {
     const staff = await prisma.user.findFirst({
       where: {
         id,
-        branch: { organizationId },
+        OR: [{ branch: { organizationId } }, { organizationId }],
         role: { in: [Role.BRANCH_MANAGER, Role.TRAINER] },
         deletedAt: null,
       },

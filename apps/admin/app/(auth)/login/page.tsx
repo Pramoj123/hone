@@ -44,14 +44,17 @@ export default function AdminLoginPage(): React.JSX.Element {
       await fetch("/api/auth/session", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ access_token: res.access_token }),
+        body: JSON.stringify({ access_token: res.access_token, refresh_token: res.refresh_token }),
       });
       return res;
     },
     onSuccess: (res: AuthResponse): void => {
       const payload = JSON.parse(atob(res.access_token.split(".")[1])) as JwtPayload;
+      // Only follow same-site relative paths — never absolute/protocol-relative URLs
+      const rawNext = params.get("next");
+      const safeNext = rawNext && rawNext.startsWith("/") && !rawNext.startsWith("//") ? rawNext : null;
       const next =
-        params.get("next") ??
+        safeNext ??
         (payload.role === "SUPER_ADMIN" ? "/dashboard" : `/${payload.gymSlug}/dashboard`);
       router.replace(next);
     },

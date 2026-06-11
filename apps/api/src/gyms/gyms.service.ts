@@ -112,7 +112,11 @@ export class GymsService {
           where: { ...branchScope, role: Role.CLIENT, deletedAt: null },
         }),
         prisma.user.count({
-          where: { branch: { organizationId }, role: Role.TRAINER, deletedAt: null },
+          where: {
+            OR: [{ branch: { organizationId } }, { organizationId }],
+            role: Role.TRAINER,
+            deletedAt: null,
+          },
         }),
         prisma.branch.count({
           where: { organizationId, deletedAt: null },

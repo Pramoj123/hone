@@ -17,12 +17,17 @@ export class MailService {
   private readonly resend: Resend;
   private readonly from: string;
   private readonly appUrl: string;
+  private readonly adminUrl: string;
   private readonly logger = new Logger(MailService.name);
 
   constructor(private config: ConfigService) {
     this.resend = new Resend(this.config.get<string>('RESEND_API_KEY'));
-    this.from = this.config.get<string>('MAIL_FROM', 'Hone <onboarding@resend.dev>');
-    this.appUrl = this.config.get<string>('APP_URL', 'http://localhost:3000');
+    // EMAIL_FROM / EMAIL_FROM_NAME / APP_WEB_URL / APP_ADMIN_URL are enforced by env.validation.ts
+    const fromName = this.config.get<string>('EMAIL_FROM_NAME', 'Hone');
+    const fromAddr = this.config.get<string>('EMAIL_FROM', 'onboarding@resend.dev');
+    this.from = `${fromName} <${fromAddr}>`;
+    this.appUrl = this.config.get<string>('APP_WEB_URL', 'http://localhost:3000');
+    this.adminUrl = this.config.get<string>('APP_ADMIN_URL', 'http://localhost:3002');
   }
 
   async sendWelcome(to: string, name: string) {
@@ -56,7 +61,8 @@ export class MailService {
   }
 
   async sendStaffInvite(to: string, name: string, gymName: string, role: string, token: string) {
-    const inviteUrl = `${this.appUrl}/accept-invite?token=${token}`;
+    // Staff accept invites in the admin portal, not the member app
+    const inviteUrl = `${this.adminUrl}/accept-invite?token=${token}`;
     const { subject, html } = staffInviteEmail({ name, gymName, role, inviteUrl });
     await this.send(to, subject, html);
   }

@@ -12,6 +12,7 @@ interface Profile {
   id: string;
   name: string;
   email: string;
+  emailVerifiedAt: string | null;
   phone: string | null;
   photoUrl: string | null;
   dateOfBirth: string | null;
@@ -83,6 +84,15 @@ export default function ProfilePage(): React.JSX.Element {
               <div className="flex gap-2 mt-1.5 flex-wrap">
                 {me.memberNumber && (
                   <Badge variant="outline" className="font-mono text-xs">{me.memberNumber}</Badge>
+                )}
+                {me.emailVerifiedAt ? (
+                  <Badge className="text-xs bg-green-900/30 text-green-400 border border-green-900/40">
+                    Email verified
+                  </Badge>
+                ) : (
+                  <Badge className="text-xs bg-amber-900/30 text-amber-400 border border-amber-900/40">
+                    Email not verified
+                  </Badge>
                 )}
                 {memberProfile?.hasSignedWaiver && (
                   <Badge className="text-xs bg-green-900/30 text-green-400 border-green-900/40">Waiver signed</Badge>

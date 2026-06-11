@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { Home, Dumbbell, ClipboardList, User, Settings, LogOut, History } from "lucide-react";
+import { Home, Dumbbell, ClipboardList, User, Settings, LogOut, History, LineChart } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useQuery } from "@tanstack/react-query";
 import { authApi } from "@/lib/api";
@@ -17,6 +17,7 @@ interface Me {
 const NAV = [
   { href: "/dashboard", label: "Home", icon: Home, exact: true },
   { href: "/dashboard/programs", label: "Programs", icon: Dumbbell },
+  { href: "/dashboard/progress", label: "Progress", icon: LineChart },
   { href: "/dashboard/logs", label: "Logs", icon: History },
   { href: "/dashboard/assessments", label: "Assessments", icon: ClipboardList },
   { href: "/dashboard/profile", label: "Profile", icon: User },

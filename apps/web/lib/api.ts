@@ -12,6 +12,7 @@ function parseError(body: ApiErrorBody): string {
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const { headers: optHeaders, ...rest } = options;
   const res = await fetch(`${BASE}${path}`, {
+    cache: "no-store",
     headers: { "Content-Type": "application/json", ...optHeaders },
     ...rest,
   });

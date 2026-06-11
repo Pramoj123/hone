@@ -19,7 +19,11 @@ function decodeJwt(token: string): JwtPayload | null {
 }
 
 export function middleware(req: NextRequest) {
-  const token = req.cookies.get("hone_admin_token")?.value;
+  // A live refresh cookie also counts as "authenticated" — the token route
+  // transparently mints a new access token from it on the next API call.
+  const token =
+    req.cookies.get("hone_admin_token")?.value ??
+    req.cookies.get("hone_admin_refresh")?.value;
   const { pathname } = req.nextUrl;
 
   if (PUBLIC_PATHS.some((p) => pathname.startsWith(p))) {
@@ -48,7 +52,7 @@ export function middleware(req: NextRequest) {
 
   // Super admin must stay in super-admin routes
   if (payload.role === "SUPER_ADMIN" && payload.gymSlug === null) {
-    const SUPER_ADMIN_ROOTS = ["/dashboard", "/gyms", "/workouts"];
+    const SUPER_ADMIN_ROOTS = ["/dashboard", "/gyms", "/workouts", "/scheduler"];
     const allowed = SUPER_ADMIN_ROOTS.some((r) => pathname.startsWith(r));
     if (!allowed) {
       return NextResponse.redirect(new URL("/dashboard", req.url));
