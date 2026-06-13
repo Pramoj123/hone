@@ -1,0 +1,10 @@
+import { PrismaClient } from '@prisma/client';
+const p = new PrismaClient();
+const logSetCols = await p.$queryRaw`SELECT column_name FROM information_schema.columns WHERE table_name='WorkoutLog' AND column_name='sets'`;
+console.log('WorkoutLog.sets exists:', logSetCols.length > 0);
+const clients = await p.$queryRaw`SELECT count(*)::int AS n FROM "User" WHERE role='CLIENT' AND "branchId" IS NOT NULL AND "deletedAt" IS NULL`;
+const memberships = await p.$queryRaw`SELECT count(*)::int AS n FROM "Membership"`;
+const orphanOrg = await p.$queryRaw`SELECT count(*)::int AS n FROM "User" WHERE role='CLIENT' AND "organizationId" IS NOT NULL AND "branchId" IS NULL AND "deletedAt" IS NULL`;
+const missing = await p.$queryRaw`SELECT count(*)::int AS n FROM "User" u JOIN "Branch" b ON b.id = u."branchId" WHERE u.role='CLIENT' AND u."branchId" IS NOT NULL AND u."deletedAt" IS NULL AND NOT EXISTS (SELECT 1 FROM "Membership" m WHERE m."userId" = u.id AND m."organizationId" = b."organizationId")`;
+console.log('gym clients:', clients[0].n, '| membership rows:', memberships[0].n, '| clients missing membership:', missing[0].n, '| org-set-branch-null clients:', orphanOrg[0].n);
+await p.$disconnect();

@@ -23,6 +23,7 @@ class WorkoutListDto extends PaginationDto {
   @IsOptional() @IsString() difficulty?: string;
   @IsOptional() @IsString() search?: string;
   @IsOptional() @IsString() reviewStatus?: string;
+  @IsOptional() @IsString() globalOnly?: string;
 }
 
 class RejectDto {
@@ -42,6 +43,7 @@ export class WorkoutsController {
       query.difficulty,
       query.search,
       query.reviewStatus,
+      query.globalOnly === 'true',
     );
   }
 

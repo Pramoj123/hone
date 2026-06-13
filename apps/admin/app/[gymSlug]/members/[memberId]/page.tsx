@@ -43,6 +43,18 @@ interface MemberProfile {
   primaryGoal: string | null;
 }
 
+interface MembershipRecord {
+  id: string;
+  status: "PENDING" | "ACTIVE" | "ENDED";
+  memberNumber: string | null;
+  requestNote: string | null;
+  joinedAt: string | null;
+  endedAt: string | null;
+  endReason: string | null;
+  branch: { id: string; name: string } | null;
+  decidedBy: { id: string; name: string } | null;
+}
+
 interface Member {
   id: string;
   name: string;
@@ -58,6 +70,7 @@ interface Member {
   healthNotes: string | null;
   createdAt: string;
   memberProfile: MemberProfile | null;
+  memberships: MembershipRecord[];
 }
 
 const profileSchema = z.object({
@@ -243,6 +256,53 @@ export default function MemberDetailPage({ params }: PageProps): React.JSX.Eleme
           </CardContent>
         </Card>
       </div>
+
+      {/* Membership history */}
+      {(member.memberships?.length ?? 0) > 0 && (
+        <Card>
+          <CardHeader className="pb-3">
+            <CardTitle className="text-sm">Membership</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {member.memberships.map((membership) => (
+              <div key={membership.id} className="rounded-lg border border-border px-4 py-3 text-sm space-y-1.5">
+                <div className="flex items-center justify-between gap-2 flex-wrap">
+                  <div className="flex items-center gap-2">
+                    <Badge
+                      className={`text-xs border-0 ${
+                        membership.status === "ACTIVE" ? "bg-green-100 text-green-700" :
+                        membership.status === "PENDING" ? "bg-yellow-100 text-yellow-700" :
+                        "bg-gray-100 text-gray-600"
+                      }`}
+                    >
+                      {membership.status}
+                    </Badge>
+                    {membership.endReason && (
+                      <span className="text-xs text-muted-foreground capitalize">{membership.endReason.toLowerCase()}</span>
+                    )}
+                  </div>
+                  {membership.memberNumber && (
+                    <span className="font-mono text-xs text-muted-foreground">{membership.memberNumber}</span>
+                  )}
+                </div>
+                <div className="flex gap-4 flex-wrap text-xs text-muted-foreground">
+                  {membership.branch && <span>{membership.branch.name}</span>}
+                  {membership.joinedAt && (
+                    <span>Joined {new Date(membership.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  )}
+                  {membership.endedAt && (
+                    <span>Ended {new Date(membership.endedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}</span>
+                  )}
+                  {membership.decidedBy && <span>Decided by {membership.decidedBy.name}</span>}
+                </div>
+                {membership.requestNote && (
+                  <p className="text-xs text-muted-foreground italic">“{membership.requestNote}”</p>
+                )}
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Health Profile — inside profile tab */}
       <Card>

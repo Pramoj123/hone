@@ -7,8 +7,9 @@ import {
 } from '@nestjs/common';
 import * as bcrypt from 'bcrypt';
 import * as crypto from 'crypto';
-import { prisma, Role, ProgramStatus } from '@hone/database';
+import { prisma, Role, ProgramStatus, MembershipStatus } from '@hone/database';
 import { MailService } from '../mail/mail.service';
+import { MembershipsService } from '../memberships/memberships.service';
 import type { CreateMemberDto } from './dto/create-member.dto';
 import type { UpdateMemberProfileDto } from './dto/update-member-profile.dto';
 import type { ListMyClientsDto } from './dto/list-my-clients.dto';
@@ -38,7 +39,10 @@ const MEMBER_SELECT = {
 
 @Injectable()
 export class MembersService {
-  constructor(private mail: MailService) {}
+  constructor(
+    private mail: MailService,
+    private memberships: MembershipsService,
+  ) {}
   async findAll(organizationId: string, user: CurrentUserType) {
     // BRANCH_MANAGER and TRAINER see only their own branch
     const branchWhere =
@@ -58,26 +62,43 @@ export class MembersService {
     });
   }
 
-  async create(organizationId: string, dto: CreateMemberDto) {
+  async create(organizationId: string, dto: CreateMemberDto, createdById?: string) {
     // Validate the branch belongs to this org
     const branch = await prisma.branch.findFirst({
       where: { id: dto.branchId, organizationId, deletedAt: null },
     });
     if (!branch) throw new BadRequestException('Branch not found in this organization');
 
+    // If the email exists and is an orphan CLIENT (no gym), link them instead of error
     const existing = await prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existing) {
+      if (existing.role === Role.CLIENT && !existing.branchId && !existing.deletedAt) {
+        // Link orphan account to this gym
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { branchId: dto.branchId, memberNumber: dto.memberNumber ?? existing.memberNumber },
+        });
+        await this.memberships.createActiveMembership(
+          existing.id,
+          organizationId,
+          dto.branchId,
+          dto.memberNumber,
+          createdById ?? null,
+        );
+        return prisma.user.findUnique({ where: { id: existing.id }, select: MEMBER_SELECT });
+      }
+      throw new ConflictException('Email already registered');
+    }
 
     const passwordHash = await bcrypt.hash(dto.password, 10);
 
-    return prisma.$transaction(async (tx) => {
-      const member = await tx.user.create({
+    const member = await prisma.$transaction(async (tx) => {
+      const created = await tx.user.create({
         data: {
           name: dto.name,
           email: dto.email,
           passwordHash,
           role: Role.CLIENT,
-          // No organizationId — the org is inferred through branchId
           branchId: dto.branchId,
           phone: dto.phone,
           photoUrl: dto.photoUrl,
@@ -92,12 +113,20 @@ export class MembersService {
         },
         select: MEMBER_SELECT,
       });
-      await tx.memberProfile.create({ data: { userId: member.id } });
-      return member;
-    }).then((member) => {
-      this.mail.sendWelcome(member.email, member.name).catch(() => null);
-      return member;
+      await tx.memberProfile.create({ data: { userId: created.id } });
+      return created;
     });
+
+    await this.memberships.createActiveMembership(
+      member.id,
+      organizationId,
+      dto.branchId,
+      dto.memberNumber,
+      createdById ?? null,
+    );
+
+    this.mail.sendWelcome(member.email, member.name).catch(() => null);
+    return member;
   }
 
   async findOne(id: string, organizationId: string, user?: CurrentUserType) {
@@ -122,7 +151,17 @@ export class MembersService {
       throw new ForbiddenException('Access restricted to your branch');
     }
 
-    return member;
+    // Membership history at this org only — other gyms' memberships are private
+    const memberships = await prisma.membership.findMany({
+      where: { userId: id, organizationId },
+      include: {
+        branch: { select: { id: true, name: true } },
+        decidedBy: { select: { id: true, name: true } },
+      },
+      orderBy: { updatedAt: 'desc' },
+    });
+
+    return { ...member, memberships };
   }
 
   async update(id: string, organizationId: string, dto: Partial<CreateMemberDto>) {
@@ -290,22 +329,43 @@ export class MembersService {
 
   // ── Flow 4: Member invite by email ───────────────────────────────────────
 
-  async invite(organizationId: string, dto: Omit<CreateMemberDto, 'password'> & { branchId: string }) {
+  async invite(
+    organizationId: string,
+    dto: Omit<CreateMemberDto, 'password'> & { branchId: string },
+    invitedById?: string,
+  ) {
     const branch = await prisma.branch.findFirst({ where: { id: dto.branchId, organizationId, deletedAt: null } });
     if (!branch) throw new BadRequestException('Branch not found in this organization');
 
     const existing = await prisma.user.findUnique({ where: { email: dto.email } });
-    if (existing) throw new ConflictException('Email already registered');
+    if (existing) {
+      // Allow linking orphan CLIENT accounts
+      if (existing.role === Role.CLIENT && !existing.branchId && !existing.deletedAt) {
+        await prisma.user.update({
+          where: { id: existing.id },
+          data: { branchId: dto.branchId, memberNumber: dto.memberNumber ?? existing.memberNumber },
+        });
+        await this.memberships.createActiveMembership(
+          existing.id,
+          organizationId,
+          dto.branchId,
+          dto.memberNumber,
+          invitedById ?? null,
+        );
+        return { ...await prisma.user.findUnique({ where: { id: existing.id }, select: MEMBER_SELECT }), linked: true };
+      }
+      throw new ConflictException('Email already registered');
+    }
 
     const inviteToken = crypto.randomBytes(32).toString('hex');
-    const inviteExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000); // 48 hours
+    const inviteExpiry = new Date(Date.now() + 48 * 60 * 60 * 1000);
 
     const member = await prisma.$transaction(async (tx) => {
       const created = await tx.user.create({
         data: {
           name: dto.name,
           email: dto.email,
-          passwordHash: '', // no password until invite accepted
+          passwordHash: '',
           role: Role.CLIENT,
           branchId: dto.branchId,
           phone: dto.phone,
@@ -324,6 +384,14 @@ export class MembersService {
       await tx.memberProfile.create({ data: { userId: created.id } });
       return created;
     });
+
+    await this.memberships.createActiveMembership(
+      member.id,
+      organizationId,
+      dto.branchId,
+      dto.memberNumber,
+      invitedById ?? null,
+    );
 
     const org = await prisma.organization.findUnique({ where: { id: organizationId }, select: { name: true } });
     this.mail.sendMemberInvite(dto.email, dto.name, org?.name ?? 'your gym', inviteToken).catch(() => null);

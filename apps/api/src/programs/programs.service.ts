@@ -5,9 +5,10 @@ import {
   Logger,
   NotFoundException,
 } from '@nestjs/common';
-import { prisma, Role, ProgramStatus } from '@hone/database';
+import { prisma, Role, ProgramStatus, ProgramSource } from '@hone/database';
 import { NotificationsService } from '../notifications/notifications.service';
 import type { CreateProgramDto } from './dto/create-program.dto';
+import type { CreateMyProgramDto } from './dto/create-my-program.dto';
 import type { ListProgramsDto } from './dto/list-programs.dto';
 import type { CurrentUserType } from '../common/decorators/current-user.decorator';
 
@@ -58,7 +59,7 @@ export class ProgramsService {
   }
 
   async findAll(organizationId: string, user: CurrentUserType, query: ListProgramsDto): Promise<unknown> {
-    const { clientId, status, page = 1, limit = 20 } = query;
+    const { clientId, status, source, page = 1, limit = 20 } = query;
     const resolvedTrainerId =
       query.trainerId === 'me' ? user.id : query.trainerId;
 
@@ -67,6 +68,7 @@ export class ProgramsService {
       ...(clientId ? { clientId } : {}),
       ...(resolvedTrainerId ? { trainerId: resolvedTrainerId } : {}),
       ...(status ? { status: status as ProgramStatus } : {}),
+      ...(source ? { source: source as ProgramSource } : {}),
       client: {
         branch: { organizationId },
         deletedAt: null,
@@ -192,6 +194,9 @@ export class ProgramsService {
   ): Promise<unknown> {
     const program = await this.findOne(id, organizationId, user) as any;
 
+    if (program.source !== ProgramSource.TRAINER) {
+      throw new ForbiddenException('Cannot edit self-created or AI-generated programs via staff route');
+    }
     // TRAINERs can only modify programs they created
     if (user.role === Role.TRAINER && program.trainerId !== user.id) {
       throw new ForbiddenException('You can only modify programs you created');
@@ -218,6 +223,9 @@ export class ProgramsService {
   async remove(id: string, organizationId: string, user: CurrentUserType): Promise<unknown> {
     const program = await this.findOne(id, organizationId, user) as any;
 
+    if (program.source !== ProgramSource.TRAINER) {
+      throw new ForbiddenException('Cannot delete self-created or AI-generated programs via staff route');
+    }
     if (user.role === Role.TRAINER && program.trainerId !== user.id) {
       throw new ForbiddenException('You can only delete programs you created');
     }
@@ -265,5 +273,85 @@ export class ProgramsService {
     });
     if (!program) throw new NotFoundException('Program not found');
     return program;
+  }
+
+  async createForClient(clientId: string, dto: CreateMyProgramDto): Promise<unknown> {
+    // Allow global published workouts, plus the member's own gym's APPROVED workouts
+    const client = await prisma.user.findUnique({
+      where: { id: clientId },
+      select: { branch: { select: { organizationId: true } } },
+    });
+    const orgId = client?.branch?.organizationId;
+
+    const workout = await prisma.workout.findFirst({
+      where: {
+        id: dto.workoutId,
+        isPublished: true,
+        deletedAt: null,
+        OR: [
+          { organizationId: null },
+          ...(orgId ? [{ organizationId: orgId, reviewStatus: 'APPROVED' as const }] : []),
+        ],
+      },
+    });
+    if (!workout) throw new BadRequestException('Workout not found or not available for self-service');
+
+    return prisma.workoutProgram.create({
+      data: {
+        clientId,
+        trainerId: null,
+        workoutId: dto.workoutId,
+        source: ProgramSource.SELF,
+        targetSets: dto.targetSets,
+        targetReps: dto.targetReps,
+        targetDurationMinutes: dto.targetDurationMinutes,
+        targetWeightKg: dto.targetWeightKg,
+        scheduledDate: dto.scheduledDate ? new Date(dto.scheduledDate) : null,
+        isRecurring: dto.isRecurring ?? false,
+        recurrenceDays: (dto.recurrenceDays as any) ?? [],
+        status: ProgramStatus.PENDING,
+        notes: dto.notes,
+      },
+      include: PROGRAM_INCLUDE,
+    });
+  }
+
+  async updateForClient(id: string, clientId: string, dto: Partial<CreateMyProgramDto>): Promise<unknown> {
+    const program = await prisma.workoutProgram.findFirst({
+      where: { id, clientId, deletedAt: null },
+    });
+    if (!program) throw new NotFoundException('Program not found');
+    if ((program as any).source === ProgramSource.TRAINER) {
+      throw new ForbiddenException('Cannot edit trainer-assigned programs');
+    }
+
+    const data: Record<string, unknown> = {};
+    if (dto.targetSets !== undefined) data.targetSets = dto.targetSets;
+    if (dto.targetReps !== undefined) data.targetReps = dto.targetReps;
+    if (dto.targetDurationMinutes !== undefined) data.targetDurationMinutes = dto.targetDurationMinutes;
+    if (dto.targetWeightKg !== undefined) data.targetWeightKg = dto.targetWeightKg;
+    if (dto.scheduledDate !== undefined) data.scheduledDate = dto.scheduledDate ? new Date(dto.scheduledDate) : null;
+    if (dto.isRecurring !== undefined) data.isRecurring = dto.isRecurring;
+    if (dto.recurrenceDays !== undefined) data.recurrenceDays = dto.recurrenceDays;
+    if (dto.notes !== undefined) data.notes = dto.notes;
+
+    return prisma.workoutProgram.update({
+      where: { id },
+      data,
+      include: PROGRAM_INCLUDE,
+    });
+  }
+
+  async removeForClient(id: string, clientId: string): Promise<unknown> {
+    const program = await prisma.workoutProgram.findFirst({
+      where: { id, clientId, deletedAt: null },
+    });
+    if (!program) throw new NotFoundException('Program not found');
+    if ((program as any).source === ProgramSource.TRAINER) {
+      throw new ForbiddenException('Cannot delete trainer-assigned programs');
+    }
+
+    await prisma.workoutProgram.update({ where: { id }, data: { deletedAt: new Date() } });
+    return { ok: true };
   }
 }

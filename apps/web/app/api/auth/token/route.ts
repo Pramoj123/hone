@@ -1,4 +1,4 @@
-import { NextResponse } from "next/server";
+import { NextRequest, NextResponse } from "next/server";
 import { cookies } from "next/headers";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:3001/api";
@@ -8,14 +8,17 @@ interface RefreshResponse {
   refresh_token: string;
 }
 
-export async function GET(): Promise<NextResponse> {
+export async function GET(req: NextRequest): Promise<NextResponse> {
   const jar = await cookies();
+  // ?force=1 mints a fresh access token even if the current one is still valid —
+  // used after membership changes so stale JWT claims (e.g. gymSlug) self-heal
+  const force = req.nextUrl.searchParams.get("force") === "1";
   const token = jar.get("hone_token")?.value ?? null;
-  if (token) return NextResponse.json({ token });
+  if (token && !force) return NextResponse.json({ token });
 
   // Access token expired/missing — try minting a new one from the refresh token
   const refreshToken = jar.get("hone_refresh")?.value;
-  if (!refreshToken) return NextResponse.json({ token: null });
+  if (!refreshToken) return NextResponse.json({ token });
 
   try {
     const res = await fetch(`${API_URL}/auth/refresh`, {

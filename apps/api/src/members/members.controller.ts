@@ -66,14 +66,22 @@ export class MembersController {
 
   @Post()
   @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.SUPER_ADMIN)
-  create(@Req() req: OrgRequest, @Body() dto: CreateMemberDto) {
-    return this.members.create(req.org.id, dto);
+  create(
+    @Req() req: OrgRequest,
+    @CurrentUser() user: CurrentUserType,
+    @Body() dto: CreateMemberDto,
+  ) {
+    return this.members.create(req.org.id, dto, user.id);
   }
 
   @Post('invite')
   @Roles(Role.ORG_ADMIN, Role.BRANCH_MANAGER, Role.SUPER_ADMIN)
-  invite(@Req() req: OrgRequest, @Body() dto: InviteMemberDto) {
-    return this.members.invite(req.org.id, dto as any);
+  invite(
+    @Req() req: OrgRequest,
+    @CurrentUser() user: CurrentUserType,
+    @Body() dto: InviteMemberDto,
+  ) {
+    return this.members.invite(req.org.id, dto as any, user.id);
   }
 
   @Get(':id')

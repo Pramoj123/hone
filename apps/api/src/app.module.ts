@@ -20,6 +20,8 @@ import { ProgramPlansModule } from './program-plans/program-plans.module';
 import { SchedulerModule } from './scheduler/scheduler.module';
 import { ProgressModule } from './progress/progress.module';
 import { NotificationsModule } from './notifications/notifications.module';
+import { MembershipsModule } from './memberships/memberships.module';
+import { AiModule } from './ai/ai.module';
 
 @Module({
   imports: [
@@ -43,6 +45,8 @@ import { NotificationsModule } from './notifications/notifications.module';
     SchedulerModule,
     ProgressModule,
     NotificationsModule,
+    MembershipsModule,
+    AiModule,
   ],
 })
 export class AppModule {}

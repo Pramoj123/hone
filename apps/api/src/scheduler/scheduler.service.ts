@@ -69,7 +69,7 @@ export class SchedulerService {
     // ── 3. Calculate next-week dates for each qualifying group ───────────────
     const candidateRecords: Array<{
       clientId: string;
-      trainerId: string;
+      trainerId: string | null;
       workoutId: string;
       scheduledDate: Date;
       targetSets: string | null;

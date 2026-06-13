@@ -22,8 +22,9 @@ interface ProgramPlan {
   totalWeeks: number;
   startDate: string;
   status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
-  trainerId: string;
-  trainer: { id: string; name: string };
+  trainerId: string | null;
+  source: "TRAINER" | "SELF" | "AI";
+  trainer: { id: string; name: string } | null;
   _count: { entries: number };
   createdAt: string;
 }
@@ -157,7 +158,9 @@ export function PlansTab({ gymSlug, memberId }: PlansTabProps): React.JSX.Elemen
                     <span className="flex items-center gap-1">
                       <CalendarDays className="h-3 w-3" /> {startDate}
                     </span>
-                    <span className="text-muted-foreground/70">by {plan.trainer.name}</span>
+                    <span className="text-muted-foreground/70">
+                      by {plan.trainer?.name ?? (plan.source === "AI" ? "AI" : "Self")}
+                    </span>
                   </div>
                 </div>
 

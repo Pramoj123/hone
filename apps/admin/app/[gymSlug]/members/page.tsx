@@ -5,6 +5,7 @@ import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { authApi } from "@/lib/api";
@@ -99,12 +100,17 @@ export default function MembersPage({ params }: PageProps): React.JSX.Element {
 
   const mutation = useMutation({
     mutationFn: (data: MemberFormData) =>
-      authApi.post(`/gyms/${gymSlug}/members/invite`, data),
-    onSuccess: () => {
+      authApi.post<{ linked?: boolean; name?: string }>(`/gyms/${gymSlug}/members/invite`, data),
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ["members", gymSlug] });
       queryClient.invalidateQueries({ queryKey: ["stats", gymSlug] });
       setDialogOpen(false);
       form.reset();
+      if (result.linked) {
+        toast.success(`Existing account linked — ${result.name ?? "this member"} is now active at your gym (no invite email needed)`);
+      } else {
+        toast.success("Invite sent");
+      }
     },
   });
 

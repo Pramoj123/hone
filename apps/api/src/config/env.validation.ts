@@ -13,6 +13,11 @@ interface EnvConfig {
   EMAIL_FROM_NAME: string;
   APP_WEB_URL: string;
   APP_ADMIN_URL: string;
+  // Optional — AI generation (endpoints return 503 when NVIDIA_API_KEY is unset)
+  NVIDIA_API_KEY?: string;
+  NVIDIA_BASE_URL?: string;
+  NVIDIA_MODEL?: string;
+  AI_DAILY_LIMIT?: string;
   [key: string]: unknown;
 }
 

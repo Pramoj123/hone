@@ -42,7 +42,8 @@ interface Program {
   notes: string | null;
   createdAt: string;
   workout: { id: string; name: string; category: string; difficulty: string };
-  trainer: { id: string; name: string };
+  source: "TRAINER" | "SELF" | "AI";
+  trainer: { id: string; name: string } | null;
   _count: { logs: number };
 }
 
@@ -234,7 +235,9 @@ export function ProgramsTab({ gymSlug, memberId }: Props): React.JSX.Element {
                     <td className="px-4 py-3 text-xs text-muted-foreground">
                       {[program.targetSets && `${program.targetSets} sets`, program.targetReps && `${program.targetReps} reps`].filter(Boolean).join(" × ") || "—"}
                     </td>
-                    <td className="px-4 py-3 text-xs text-muted-foreground">{program.trainer.name}</td>
+                    <td className="px-4 py-3 text-xs text-muted-foreground">
+                      {program.trainer?.name ?? (program.source === "AI" ? "AI" : "Self")}
+                    </td>
                     <td className="px-4 py-3 text-xs text-muted-foreground">{program._count.logs}</td>
                   </tr>
                 );

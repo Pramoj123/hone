@@ -1,4 +1,12 @@
-import { PrismaClient, Role } from '@prisma/client';
+import {
+  PrismaClient,
+  Role,
+  MembershipStatus,
+  ProgramSource,
+  ProgramStatus,
+  PlanStatus,
+  RecurrenceDay,
+} from '@prisma/client';
 import * as bcrypt from 'bcrypt';
 
 const prisma = new PrismaClient();
@@ -93,7 +101,7 @@ async function main() {
   });
 
   // ── Org Admin ─────────────────────────────────────────────────────────────
-  await prisma.user.upsert({
+  const orgAdmin = await prisma.user.upsert({
     where: { email: 'orgadmin@hone.fit' },
     update: {},
     create: {
@@ -133,7 +141,7 @@ async function main() {
   });
 
   // ── Trainers ──────────────────────────────────────────────────────────────
-  await prisma.user.upsert({
+  const trainer1 = await prisma.user.upsert({
     where: { email: 'trainer1@hone.fit' },
     update: {},
     create: {
@@ -305,6 +313,110 @@ async function main() {
     },
   });
 
+  // ── Solo member (no gym — tests solo mode) ───────────────────────────────
+  const solo = await prisma.user.upsert({
+    where: { email: 'solo@hone.fit' },
+    update: {},
+    create: {
+      email: 'solo@hone.fit',
+      passwordHash: await hash(SEED_PASSWORD),
+      name: 'Nikhil Rao',
+      role: Role.CLIENT,
+      phone: '+91 99887 77777',
+      dateOfBirth: new Date('1993-02-14'),
+      gender: 'Male',
+      fitnessGoals: 'Stay fit with home workouts, run a 10k',
+    },
+  });
+
+  await prisma.memberProfile.upsert({
+    where: { userId: solo.id },
+    update: {},
+    create: {
+      userId: solo.id,
+      height: 178,
+      weight: 74,
+      medicalConditions: [],
+      allergies: [],
+      fitnessLevel: 'INTERMEDIATE',
+      primaryGoal: 'ENDURANCE',
+    },
+  });
+
+  // ── Orphan member with a PENDING join request ─────────────────────────────
+  const pendingUser = await prisma.user.upsert({
+    where: { email: 'pending@hone.fit' },
+    update: {},
+    create: {
+      email: 'pending@hone.fit',
+      passwordHash: await hash(SEED_PASSWORD),
+      name: 'Sara Fernandes',
+      role: Role.CLIENT,
+      phone: '+91 99887 88888',
+      dateOfBirth: new Date('1997-09-03'),
+      gender: 'Female',
+      fitnessGoals: 'General fitness, group classes',
+    },
+  });
+
+  await prisma.memberProfile.upsert({
+    where: { userId: pendingUser.id },
+    update: {},
+    create: { userId: pendingUser.id, fitnessLevel: 'BEGINNER', primaryGoal: 'GENERAL_FITNESS' },
+  });
+
+  // ── Memberships ───────────────────────────────────────────────────────────
+  // ACTIVE rows for gym members (denormalized pointer on User stays the source of truth for branch)
+  const activeMemberships = [
+    { user: member1, branchId: mainBranch.id, memberNumber: 'HNM-0001' },
+    { user: member2, branchId: southBranch.id, memberNumber: 'HNM-0002' },
+    { user: member3, branchId: mainBranch.id, memberNumber: 'HNM-0003' },
+  ];
+  for (const m of activeMemberships) {
+    await prisma.membership.upsert({
+      where: { userId_organizationId: { userId: m.user.id, organizationId: org.id } },
+      update: {},
+      create: {
+        userId: m.user.id,
+        organizationId: org.id,
+        branchId: m.branchId,
+        memberNumber: m.memberNumber,
+        status: MembershipStatus.ACTIVE,
+        joinedAt: m.user.createdAt,
+        decidedById: orgAdmin.id,
+      },
+    });
+  }
+
+  // Solo member previously LEFT the demo gym — gives the admin an ENDED history row
+  await prisma.membership.upsert({
+    where: { userId_organizationId: { userId: solo.id, organizationId: org.id } },
+    update: {},
+    create: {
+      userId: solo.id,
+      organizationId: org.id,
+      branchId: mainBranch.id,
+      memberNumber: 'HNM-0099',
+      status: MembershipStatus.ENDED,
+      joinedAt: new Date('2025-11-01'),
+      endedAt: new Date('2026-03-15'),
+      endReason: 'LEFT',
+      decidedById: orgAdmin.id,
+    },
+  });
+
+  // PENDING join request awaiting approval in the admin portal
+  await prisma.membership.upsert({
+    where: { userId_organizationId: { userId: pendingUser.id, organizationId: org.id } },
+    update: {},
+    create: {
+      userId: pendingUser.id,
+      organizationId: org.id,
+      status: MembershipStatus.PENDING,
+      requestNote: 'Hi! I just moved to Andheri and would love to join the morning classes.',
+    },
+  });
+
   // ── Summary ───────────────────────────────────────────────────────────────
   console.log('\n✅  Seed complete — password for all accounts: Hone@1234\n');
   console.log('Role            | Email                 | Name');
@@ -317,6 +429,8 @@ async function main() {
   console.log('CLIENT          | member1@hone.fit      | Kiran Desai');
   console.log('CLIENT          | member2@hone.fit      | Priya Iyer');
   console.log('CLIENT          | member3@hone.fit      | Aditya Kapoor');
+  console.log('CLIENT (solo)   | solo@hone.fit         | Nikhil Rao (no gym)');
+  console.log('CLIENT (pending)| pending@hone.fit      | Sara Fernandes (join request)');
   console.log('\nDemo gym slug: hone-demo');
   console.log('Admin portal:   http://localhost:3002');
   console.log('Member portal:  http://localhost:3000\n');
@@ -746,6 +860,111 @@ async function main() {
   console.log(`\n📋  Assessment templates seeded:`);
   console.log(`    • ${weeklyCheckIn.name} (${(weeklyCheckIn.fields as any[]).length} fields)`);
   console.log(`    • ${initialFitness.name} (${(initialFitness.fields as any[]).length} fields)\n`);
+
+  // ── Programs (TRAINER / SELF / AI sources) ────────────────────────────────
+  const bySlug = async (slug: string) => {
+    const w = await prisma.workout.findUnique({ where: { slug } });
+    if (!w) throw new Error(`Seed workout missing: ${slug}`);
+    return w;
+  };
+  const squat = await bySlug('barbell-back-squat');
+  const pullUp = await bySlug('pull-up');
+  const treadmill = await bySlug('treadmill-run');
+  const plank = await bySlug('plank');
+  const rowing = await bySlug('rowing-machine');
+
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+
+  // Trainer-assigned program for member1 (today)
+  await prisma.workoutProgram.upsert({
+    where: { id: 'seed-program-trainer' },
+    update: {},
+    create: {
+      id: 'seed-program-trainer',
+      clientId: member1.id,
+      trainerId: trainer1.id,
+      workoutId: squat.id,
+      source: ProgramSource.TRAINER,
+      scheduledDate: today,
+      targetSets: '4',
+      targetReps: '6',
+      targetWeightKg: 100,
+      status: ProgramStatus.PENDING,
+      notes: 'Focus on depth and bracing. Last warm-up set at 80 kg.',
+    },
+  });
+
+  // Self-created recurring program for the solo member
+  await prisma.workoutProgram.upsert({
+    where: { id: 'seed-program-self' },
+    update: {},
+    create: {
+      id: 'seed-program-self',
+      clientId: solo.id,
+      trainerId: null,
+      workoutId: pullUp.id,
+      source: ProgramSource.SELF,
+      isRecurring: true,
+      recurrenceDays: [RecurrenceDay.MON, RecurrenceDay.WED, RecurrenceDay.FRI],
+      targetSets: '4',
+      targetReps: '8',
+      status: ProgramStatus.PENDING,
+      notes: 'Strict form, full dead hang.',
+    },
+  });
+
+  // AI-generated program for the solo member (today)
+  await prisma.workoutProgram.upsert({
+    where: { id: 'seed-program-ai' },
+    update: {},
+    create: {
+      id: 'seed-program-ai',
+      clientId: solo.id,
+      trainerId: null,
+      workoutId: treadmill.id,
+      source: ProgramSource.AI,
+      scheduledDate: today,
+      targetDurationMinutes: 30,
+      status: ProgramStatus.PENDING,
+      notes: 'Zone 2 pace — conversational effort.',
+    },
+  });
+
+  // ── DRAFT AI program plan for the solo member (tests the review flow) ─────
+  const nextMonday = new Date(today);
+  nextMonday.setDate(nextMonday.getDate() + ((8 - nextMonday.getDay()) % 7 || 7));
+
+  await prisma.programPlan.upsert({
+    where: { id: 'seed-plan-ai-draft' },
+    update: {},
+    create: {
+      id: 'seed-plan-ai-draft',
+      organizationId: null,
+      trainerId: null,
+      clientId: solo.id,
+      source: ProgramSource.AI,
+      name: '2-Week Endurance Kickstart',
+      description: 'AI-generated starter block mixing steady-state cardio, pulling strength, and core stability.',
+      totalWeeks: 2,
+      startDate: nextMonday,
+      status: PlanStatus.DRAFT,
+    },
+  });
+
+  await prisma.programPlanEntry.deleteMany({ where: { planId: 'seed-plan-ai-draft' } });
+  await prisma.programPlanEntry.createMany({
+    data: [
+      { planId: 'seed-plan-ai-draft', workoutId: treadmill.id, weekNumber: 1, dayOfWeek: RecurrenceDay.MON, targetDurationMinutes: 30 },
+      { planId: 'seed-plan-ai-draft', workoutId: pullUp.id,    weekNumber: 1, dayOfWeek: RecurrenceDay.WED, targetSets: 4, targetReps: 8 },
+      { planId: 'seed-plan-ai-draft', workoutId: plank.id,     weekNumber: 1, dayOfWeek: RecurrenceDay.FRI, targetSets: 3, targetDurationMinutes: 5 },
+      { planId: 'seed-plan-ai-draft', workoutId: rowing.id,    weekNumber: 2, dayOfWeek: RecurrenceDay.MON, targetDurationMinutes: 20 },
+      { planId: 'seed-plan-ai-draft', workoutId: pullUp.id,    weekNumber: 2, dayOfWeek: RecurrenceDay.WED, targetSets: 5, targetReps: 8 },
+      { planId: 'seed-plan-ai-draft', workoutId: treadmill.id, weekNumber: 2, dayOfWeek: RecurrenceDay.FRI, targetDurationMinutes: 35 },
+    ],
+  });
+
+  console.log('🤖  Programs seeded: 1 TRAINER (member1), 1 SELF + 1 AI (solo), 1 DRAFT AI plan (solo, 6 entries)\n');
 }
 
 main()

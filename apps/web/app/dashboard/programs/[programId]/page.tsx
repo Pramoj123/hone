@@ -12,7 +12,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import {
   ArrowLeft, Calendar, RotateCcw, CheckCircle2,
-  ChevronDown, ChevronUp, Dumbbell, Play, Clock,
+  ChevronDown, ChevronUp, Dumbbell, Play, Clock, Pencil, Trash2,
 } from "lucide-react";
 import {
   LineChart, Line, ResponsiveContainer,
@@ -61,7 +61,8 @@ interface Program {
     equipment: string[];
     videoUrl: string | null;
   };
-  trainer: { id: string; name: string };
+  source: "TRAINER" | "SELF" | "AI";
+  trainer: { id: string; name: string } | null;
   logs: WorkoutLog[];
 }
 
@@ -122,6 +123,12 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
   const queryClient = useQueryClient();
   const [tab, setTab] = useState<Tab>("overview");
   const [showManualLog, setShowManualLog] = useState(false);
+  const [showEdit, setShowEdit] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [editForm, setEditForm] = useState({
+    targetSets: "", targetReps: "", targetWeightKg: "",
+    targetDurationMinutes: "", scheduledDate: "", notes: "",
+  });
   const [logForm, setLogForm] = useState({
     actualSets: "", actualReps: "", actualWeightKg: "",
     actualDurationMinutes: "", rpe: 0, notes: "",
@@ -152,6 +159,51 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
     onError: (error: Error) => toast.error(error.message),
   });
 
+  const updateMutation = useMutation({
+    mutationFn: (data: object) => authApi.patch(`/me/programs/${programId}`, data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-program", programId] });
+      queryClient.invalidateQueries({ queryKey: ["me-programs-all"] });
+      setShowEdit(false);
+      toast.success("Program updated");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const deleteMutation = useMutation({
+    mutationFn: () => authApi.delete(`/me/programs/${programId}`),
+    onSuccess: () => {
+      toast.success("Program deleted");
+      queryClient.invalidateQueries({ queryKey: ["me-programs-all"] });
+      router.push("/dashboard/programs");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  function openEdit(): void {
+    if (!program) return;
+    setEditForm({
+      targetSets: program.targetSets?.toString() ?? "",
+      targetReps: program.targetReps?.toString() ?? "",
+      targetWeightKg: program.targetWeightKg?.toString() ?? "",
+      targetDurationMinutes: program.targetDurationMinutes?.toString() ?? "",
+      scheduledDate: program.scheduledDate ? program.scheduledDate.slice(0, 10) : "",
+      notes: program.notes ?? "",
+    });
+    setShowEdit(true);
+  }
+
+  function submitEdit(): void {
+    updateMutation.mutate({
+      targetSets: editForm.targetSets || undefined,
+      targetReps: editForm.targetReps || undefined,
+      targetWeightKg: editForm.targetWeightKg ? Number(editForm.targetWeightKg) : undefined,
+      targetDurationMinutes: editForm.targetDurationMinutes ? Number(editForm.targetDurationMinutes) : undefined,
+      scheduledDate: editForm.scheduledDate || undefined,
+      notes: editForm.notes || undefined,
+    });
+  }
+
   function submitLog(): void {
     const payload: Record<string, unknown> = {};
     if (logForm.actualSets) payload.actualSets = Number(logForm.actualSets);
@@ -172,6 +224,7 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
   const displayReps = program.targetReps ?? (workout.reps ? parseInt(workout.reps) : null);
   const displayDuration = program.targetDurationMinutes ?? workout.durationMinutes;
   const canLog = program.status === "ACTIVE" || program.status === "PENDING";
+  const canManage = program.source !== "TRAINER";
 
   return (
     // pb-24 leaves room for the sticky bottom bar on all screen sizes
@@ -204,7 +257,9 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
             <span className="text-xs px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-medium">{workout.difficulty}</span>
           </div>
           <h1 className="text-2xl font-bold text-foreground">{workout.name}</h1>
-          <p className="text-xs text-muted-foreground mt-1">Assigned by {program.trainer.name}</p>
+          <p className="text-xs text-muted-foreground mt-1">
+            {program.trainer ? `Assigned by ${program.trainer.name}` : program.source === "AI" ? "AI Generated" : "Self-coached"}
+          </p>
         </div>
         <div className="text-xs text-muted-foreground shrink-0 text-right">
           {program.isRecurring ? (
@@ -217,6 +272,75 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
           )}
         </div>
       </div>
+
+      {/* ── Manage (self/AI programs only) ──────────────────────────────── */}
+      {canManage && (
+        <div className="space-y-3">
+          {!showDeleteConfirm ? (
+            <div className="flex items-center gap-2">
+              <Button size="sm" variant="outline" onClick={() => (showEdit ? setShowEdit(false) : openEdit())}>
+                <Pencil className="h-3.5 w-3.5 mr-1.5" /> {showEdit ? "Close editor" : "Edit program"}
+              </Button>
+              <Button
+                size="sm"
+                variant="ghost"
+                className="text-destructive hover:text-destructive"
+                onClick={() => setShowDeleteConfirm(true)}
+              >
+                <Trash2 className="h-3.5 w-3.5 mr-1.5" /> Delete
+              </Button>
+            </div>
+          ) : (
+            <div className="flex items-center gap-2 flex-wrap rounded-lg border border-destructive/40 bg-destructive/5 px-3 py-2.5">
+              <p className="text-xs text-muted-foreground">Delete this program? Logged sessions are kept.</p>
+              <Button size="sm" variant="destructive" onClick={() => deleteMutation.mutate()} disabled={deleteMutation.isPending}>
+                {deleteMutation.isPending ? "Deleting…" : "Yes, delete"}
+              </Button>
+              <Button size="sm" variant="outline" onClick={() => setShowDeleteConfirm(false)}>Cancel</Button>
+            </div>
+          )}
+
+          {showEdit && (
+            <div className="rounded-xl border border-border bg-card px-5 py-5 space-y-4">
+              <p className="text-sm font-semibold text-foreground">Edit program</p>
+              <div className="grid grid-cols-2 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">Sets</label>
+                  <Input placeholder="e.g. 3" value={editForm.targetSets} onChange={(e) => setEditForm((p) => ({ ...p, targetSets: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">Reps</label>
+                  <Input placeholder="e.g. 10" value={editForm.targetReps} onChange={(e) => setEditForm((p) => ({ ...p, targetReps: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">Weight (kg)</label>
+                  <Input type="number" step="0.5" placeholder="Optional" value={editForm.targetWeightKg} onChange={(e) => setEditForm((p) => ({ ...p, targetWeightKg: e.target.value }))} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">Duration (min)</label>
+                  <Input type="number" placeholder="Optional" value={editForm.targetDurationMinutes} onChange={(e) => setEditForm((p) => ({ ...p, targetDurationMinutes: e.target.value }))} />
+                </div>
+              </div>
+              {!program.isRecurring && (
+                <div>
+                  <label className="text-xs text-muted-foreground block mb-1.5">Scheduled date</label>
+                  <Input type="date" value={editForm.scheduledDate} onChange={(e) => setEditForm((p) => ({ ...p, scheduledDate: e.target.value }))} />
+                </div>
+              )}
+              <div>
+                <label className="text-xs text-muted-foreground block mb-1.5">Notes</label>
+                <Input placeholder="Any notes…" value={editForm.notes} onChange={(e) => setEditForm((p) => ({ ...p, notes: e.target.value }))} />
+              </div>
+              <div className="flex items-center gap-2">
+                <Button size="sm" onClick={submitEdit} disabled={updateMutation.isPending}>
+                  {updateMutation.isPending ? "Saving…" : "Save changes"}
+                </Button>
+                <Button size="sm" variant="outline" onClick={() => setShowEdit(false)}>Cancel</Button>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
 
       {/* ── Tab bar ─────────────────────────────────────────────────────── */}
       <div className="flex border-b border-border -mb-2">
@@ -289,7 +413,7 @@ export default function ProgramDetailPage({ params }: PageProps): React.JSX.Elem
           {/* Trainer notes */}
           {program.notes && (
             <div className="rounded-xl border border-primary/20 bg-primary/5 px-5 py-4">
-              <p className="text-xs font-semibold text-primary mb-1.5">Trainer note</p>
+              <p className="text-xs font-semibold text-primary mb-1.5">{program.trainer ? "Trainer note" : "Note"}</p>
               <p className="text-sm text-foreground leading-relaxed">{program.notes}</p>
             </div>
           )}

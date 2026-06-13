@@ -48,6 +48,7 @@ model Organization {
   assessmentTemplates AssessmentTemplate[] @relation("OrgTemplates")
   assessments         Assessment[]         @relation("OrgAssessments")
   programPlans        ProgramPlan[]
+  memberships         Membership[]
   createdAt           DateTime             @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -77,7 +78,8 @@ model Branch {
   capacity     Int?
   description  String?
 
-  users     User[]
+  users       User[]
+  memberships Membership[]
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
@@ -141,6 +143,9 @@ model User {
   createdTemplates     AssessmentTemplate[] @relation("TemplateCreator")
   plansAsTrainer       ProgramPlan[]        @relation("TrainerPlans")
   plansAsClient        ProgramPlan[]        @relation("ClientPlans")
+  memberships          Membership[]         @relation("UserMemberships")
+  membershipDecisions  Membership[]         @relation("MembershipDecisions")
+  aiGenerations        AiGeneration[]
 
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
@@ -148,6 +153,18 @@ model User {
 
   @@index([organizationId])
   @@index([branchId])
+}
+
+enum MembershipStatus {
+  PENDING
+  ACTIVE
+  ENDED
+}
+
+enum ProgramSource {
+  TRAINER
+  SELF
+  AI
 }
 
 enum WorkoutReviewStatus {
@@ -277,10 +294,11 @@ model WorkoutProgram {
 
   clientId  String
   client    User    @relation("ClientPrograms", fields: [clientId], references: [id])
-  trainerId String
-  trainer   User    @relation("TrainerPrograms", fields: [trainerId], references: [id])
+  trainerId String?
+  trainer   User?   @relation("TrainerPrograms", fields: [trainerId], references: [id])
   workoutId String
   workout   Workout @relation(fields: [workoutId], references: [id])
+  source    ProgramSource @default(TRAINER)
 
   // Target overrides — null means fall back to workout defaults
   targetSets            String?
@@ -306,6 +324,7 @@ model WorkoutProgram {
   @@index([trainerId])
   @@index([workoutId])
   @@index([status])
+  @@index([source])
 }
 
 model WorkoutLog {
@@ -422,13 +441,14 @@ model RefreshToken {
 // ── Multi-week program plans ──────────────────────────────────────────────────
 
 model ProgramPlan {
-  id             String       @id @default(cuid())
-  organizationId String
-  organization   Organization @relation(fields: [organizationId], references: [id])
-  trainerId      String
-  trainer        User         @relation("TrainerPlans", fields: [trainerId], references: [id])
+  id             String        @id @default(cuid())
+  organizationId String?
+  organization   Organization? @relation(fields: [organizationId], references: [id])
+  trainerId      String?
+  trainer        User?         @relation("TrainerPlans", fields: [trainerId], references: [id])
   clientId       String
-  client         User         @relation("ClientPlans", fields: [clientId], references: [id])
+  client         User          @relation("ClientPlans", fields: [clientId], references: [id])
+  source         ProgramSource @default(TRAINER)
 
   name        String
   description String?
@@ -468,6 +488,46 @@ model ProgramPlanEntry {
 
   @@index([planId])
   @@index([workoutId])
+}
+
+// ── Membership lifecycle ──────────────────────────────────────────────────────
+
+model Membership {
+  id             String           @id @default(cuid())
+  userId         String
+  user           User             @relation("UserMemberships", fields: [userId], references: [id])
+  organizationId String
+  organization   Organization     @relation(fields: [organizationId], references: [id])
+  branchId       String?
+  branch         Branch?          @relation(fields: [branchId], references: [id])
+  memberNumber   String?
+  status         MembershipStatus @default(PENDING)
+  requestNote    String?
+  joinedAt       DateTime?
+  endedAt        DateTime?
+  endReason      String?
+  decidedById    String?
+  decidedBy      User?            @relation("MembershipDecisions", fields: [decidedById], references: [id])
+  createdAt      DateTime         @default(now())
+  updatedAt      DateTime         @updatedAt
+
+  @@unique([userId, organizationId])
+  @@index([organizationId, status])
+  @@index([branchId, status])
+}
+
+// ── AI generation tracking ─────────────────────────────────────────────────
+
+model AiGeneration {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  mode      String   // DAILY | PLAN
+  model     String
+  status    String   // PENDING | SUCCESS | FAILED
+  createdAt DateTime @default(now())
+
+  @@index([userId, createdAt])
 }
 
 // @deprecated — replaced by Assessment + AssessmentTemplate above.

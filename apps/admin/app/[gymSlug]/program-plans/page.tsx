@@ -24,10 +24,11 @@ interface ProgramPlan {
   totalWeeks: number;
   startDate: string;
   status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
-  trainerId: string;
+  trainerId: string | null;
   clientId: string;
+  source: "TRAINER" | "SELF" | "AI";
   client: { id: string; name: string; email: string; memberNumber: string | null };
-  trainer: { id: string; name: string; email: string };
+  trainer: { id: string; name: string; email: string } | null;
   _count: { entries: number };
   createdAt: string;
 }
@@ -293,7 +294,9 @@ function DesktopRow({
           <p className="text-xs text-muted-foreground font-mono">{plan.client.memberNumber}</p>
         )}
       </td>
-      <td className="px-4 py-3 text-muted-foreground">{plan.trainer.name}</td>
+      <td className="px-4 py-3 text-muted-foreground">
+        {plan.trainer?.name ?? (plan.source === "AI" ? "AI" : "Self")}
+      </td>
       <td className="px-4 py-3 text-muted-foreground">{plan.totalWeeks}w</td>
       <td className="px-4 py-3">
         <span className="inline-flex items-center gap-1 text-muted-foreground">

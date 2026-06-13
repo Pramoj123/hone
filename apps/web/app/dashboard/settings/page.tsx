@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { useForm } from "react-hook-form";
@@ -11,7 +11,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Check } from "lucide-react";
+import { Check, Building2, Loader2, AlertTriangle, ArrowRightLeft } from "lucide-react";
 
 interface MemberProfile {
   height: number | null;
@@ -383,6 +383,9 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
 
+      {/* Gym membership */}
+      <GymMembershipCard />
+
       {/* Password */}
       <Card>
         <CardHeader><CardTitle>Change password</CardTitle></CardHeader>
@@ -422,5 +425,237 @@ export default function SettingsPage(): React.JSX.Element {
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+// ── Gym membership card ───────────────────────────────────────────────────────
+
+interface GymMembership {
+  id: string;
+  status: "PENDING" | "ACTIVE" | "ENDED";
+  requestNote: string | null;
+  memberNumber: string | null;
+  joinedAt: string | null;
+  organization: { id: string; name: string; slug: string };
+  branch: { id: string; name: string } | null;
+}
+
+const joinSchema = z.object({
+  slug: z.string().min(1, "Gym slug is required"),
+  note: z.string().optional().or(z.literal("")),
+});
+type JoinForm = z.infer<typeof joinSchema>;
+
+function GymMembershipCard(): React.JSX.Element {
+  const queryClient = useQueryClient();
+  const [showLeaveConfirm, setShowLeaveConfirm] = useState(false);
+  const [showTransfer, setShowTransfer] = useState(false);
+
+  const { data, isLoading } = useQuery<{ active: GymMembership | null; pending: GymMembership | null }>({
+    queryKey: ["me-membership"],
+    queryFn: () => authApi.get("/me/membership"),
+    staleTime: 30_000,
+    // Poll while a request is pending so approval is picked up without a manual reload
+    refetchInterval: (query) => (query.state.data?.pending ? 15_000 : false),
+  });
+
+  // When the membership flips PENDING → ACTIVE, force-mint a fresh access token
+  // so stale JWT claims (gymSlug) self-heal immediately instead of within 15 min
+  const wasPendingRef = useRef(false);
+  useEffect(() => {
+    if (data?.pending) wasPendingRef.current = true;
+    if (data?.active && wasPendingRef.current) {
+      wasPendingRef.current = false;
+      fetch("/api/auth/token?force=1").catch(() => null);
+      toast.success(`Your membership at ${data.active.organization.name} is now active!`);
+    }
+  }, [data]);
+
+  const joinForm = useForm<JoinForm>({
+    resolver: zodResolver(joinSchema),
+    defaultValues: { slug: "", note: "" },
+  });
+
+  const joinMutation = useMutation({
+    mutationFn: (data: JoinForm) => authApi.post("/me/membership/join", data),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-membership"] });
+      joinForm.reset();
+      toast.success("Join request submitted — waiting for approval");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const cancelMutation = useMutation({
+    mutationFn: () => authApi.post("/me/membership/cancel", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-membership"] });
+      toast.success("Join request cancelled");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const transferForm = useForm<JoinForm>({
+    resolver: zodResolver(joinSchema),
+    defaultValues: { slug: "", note: "" },
+  });
+
+  const transferMutation = useMutation({
+    mutationFn: (form: JoinForm) => authApi.post("/me/membership/transfer", { slug: form.slug }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-membership"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["me-programs-all"] });
+      setShowTransfer(false);
+      transferForm.reset();
+      toast.success("Transfer requested — waiting for approval at the new gym");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  const leaveMutation = useMutation({
+    mutationFn: () => authApi.post("/me/membership/leave", {}),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["me-membership"] });
+      queryClient.invalidateQueries({ queryKey: ["me"] });
+      queryClient.invalidateQueries({ queryKey: ["me-programs-all"] });
+      setShowLeaveConfirm(false);
+      toast.success("You have left the gym. Trainer programs have been cancelled.");
+    },
+    onError: (error: Error) => toast.error(error.message),
+  });
+
+  return (
+    <Card>
+      <CardHeader><CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" />Gym membership</CardTitle></CardHeader>
+      <CardContent className="space-y-4">
+        {isLoading ? (
+          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+            <Loader2 className="h-4 w-4 animate-spin" /> Loading…
+          </div>
+        ) : data?.active ? (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-border bg-muted/30 px-4 py-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-foreground">{data.active.organization.name}</p>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-green-900/20 text-green-400 border border-green-900/40">Active</span>
+              </div>
+              {data.active.branch && (
+                <p className="text-xs text-muted-foreground">{data.active.branch.name}</p>
+              )}
+              {data.active.memberNumber && (
+                <p className="text-xs text-muted-foreground">Member #{data.active.memberNumber}</p>
+              )}
+              {data.active.joinedAt && (
+                <p className="text-xs text-muted-foreground">
+                  Joined {new Date(data.active.joinedAt).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
+                </p>
+              )}
+            </div>
+            {showTransfer && (
+              <form
+                onSubmit={transferForm.handleSubmit((form) => transferMutation.mutate(form))}
+                className="rounded-lg border border-border bg-muted/20 p-3 space-y-3"
+              >
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-yellow-400 shrink-0 mt-0.5" />
+                  <p className="text-xs text-muted-foreground">
+                    Transferring ends your membership here and cancels trainer-assigned programs.
+                    Self-created and AI programs are kept. The new gym must approve your request.
+                  </p>
+                </div>
+                <div>
+                  <FieldLabel>New gym slug</FieldLabel>
+                  <Input className="text-base" placeholder="e.g. ironfit-downtown" {...transferForm.register("slug")} />
+                  <FieldError message={transferForm.formState.errors.slug?.message} />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" size="sm" disabled={transferMutation.isPending}>
+                    {transferMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+                    Transfer
+                  </Button>
+                  <Button type="button" size="sm" variant="outline" onClick={() => setShowTransfer(false)}>Cancel</Button>
+                </div>
+              </form>
+            )}
+            {!showLeaveConfirm ? (
+              <div className="flex items-center gap-2">
+                {!showTransfer && (
+                  <Button variant="outline" size="sm" onClick={() => setShowTransfer(true)}>
+                    <ArrowRightLeft className="h-3.5 w-3.5 mr-1.5" /> Transfer gym
+                  </Button>
+                )}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="text-destructive border-destructive/30 hover:bg-destructive/10"
+                  onClick={() => setShowLeaveConfirm(true)}
+                >
+                  Leave gym
+                </Button>
+              </div>
+            ) : (
+              <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-3">
+                <div className="flex items-start gap-2">
+                  <AlertTriangle className="h-4 w-4 text-destructive shrink-0 mt-0.5" />
+                  <p className="text-sm text-destructive">
+                    Leaving will cancel all trainer-assigned programs and remove your gym access. Self-created and AI programs are kept.
+                  </p>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="destructive"
+                    disabled={leaveMutation.isPending}
+                    onClick={() => leaveMutation.mutate()}
+                  >
+                    {leaveMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Confirm leave"}
+                  </Button>
+                  <Button size="sm" variant="outline" onClick={() => setShowLeaveConfirm(false)}>Cancel</Button>
+                </div>
+              </div>
+            )}
+          </div>
+        ) : data?.pending ? (
+          <div className="space-y-3">
+            <div className="rounded-lg border border-yellow-900/40 bg-yellow-900/10 px-4 py-3 space-y-1">
+              <div className="flex items-center justify-between">
+                <p className="font-semibold text-foreground">{data.pending.organization.name}</p>
+                <span className="text-xs px-2 py-0.5 rounded-full bg-yellow-900/20 text-yellow-400 border border-yellow-900/40">Pending</span>
+              </div>
+              <p className="text-xs text-muted-foreground">Your join request is awaiting approval.</p>
+            </div>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={cancelMutation.isPending}
+              onClick={() => cancelMutation.mutate()}
+            >
+              {cancelMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin" /> : "Cancel request"}
+            </Button>
+          </div>
+        ) : (
+          <form onSubmit={joinForm.handleSubmit((data) => joinMutation.mutate(data))} className="space-y-3">
+            <p className="text-sm text-muted-foreground">Not a member of any gym. Enter a gym slug to request to join.</p>
+            <div>
+              <FieldLabel>Gym slug</FieldLabel>
+              <Input className="text-base" placeholder="e.g. ironfit-downtown" {...joinForm.register("slug")} />
+              <FieldError message={joinForm.formState.errors.slug?.message} />
+            </div>
+            <div>
+              <FieldLabel>Message (optional)</FieldLabel>
+              <Input className="text-base" placeholder="Introduce yourself…" {...joinForm.register("note")} />
+            </div>
+            <Button type="submit" disabled={joinMutation.isPending}>
+              {joinMutation.isPending ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Request to join
+            </Button>
+            {joinMutation.error && (
+              <p className="text-sm text-destructive">{(joinMutation.error as Error).message}</p>
+            )}
+          </form>
+        )}
+      </CardContent>
+    </Card>
   );
 }

@@ -7,7 +7,7 @@ import { authApi } from "@/lib/api";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Calendar, RotateCcw, CheckCircle2, Clock, Dumbbell, Zap, Flame,
-  LayoutGrid, CalendarDays, User, ChevronRight,
+  LayoutGrid, CalendarDays, User, ChevronRight, Plus, Sparkles,
 } from "lucide-react";
 import { useState } from "react";
 
@@ -33,7 +33,8 @@ interface Program {
     reps: string | null;
     durationMinutes: number | null;
   };
-  trainer: { id: string; name: string };
+  source: "TRAINER" | "SELF" | "AI";
+  trainer: { id: string; name: string } | null;
   _count: { logs: number };
 }
 
@@ -100,7 +101,8 @@ interface ProgramPlan {
   totalWeeks: number;
   startDate: string;
   status: "DRAFT" | "ACTIVE" | "COMPLETED" | "CANCELLED";
-  trainer: { id: string; name: string };
+  source: "TRAINER" | "SELF" | "AI";
+  trainer: { id: string; name: string } | null;
   _count: { entries: number };
 }
 
@@ -153,9 +155,25 @@ export default function ProgramsPage(): React.JSX.Element {
 
   return (
     <div className="p-4 md:p-8 max-w-2xl space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-foreground">Programs</h1>
-        <p className="text-muted-foreground text-sm mt-1">Workouts assigned by your trainer</p>
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">Programs</h1>
+          <p className="text-muted-foreground text-sm mt-1">Your workout programs</p>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link
+            href="/dashboard/programs/generate"
+            className="inline-flex items-center gap-1.5 text-xs font-medium border border-primary/50 text-primary rounded-lg px-3 py-1.5 hover:bg-primary/10 transition-colors"
+          >
+            <Sparkles className="h-3.5 w-3.5" />AI
+          </Link>
+          <Link
+            href="/dashboard/programs/new"
+            className="inline-flex items-center gap-1.5 text-xs font-semibold bg-primary text-primary-foreground rounded-lg px-3 py-1.5 hover:bg-primary/90 transition-colors"
+          >
+            <Plus className="h-3.5 w-3.5" />New
+          </Link>
+        </div>
       </div>
 
       {/* Streak widget */}
@@ -247,7 +265,10 @@ function ProgramCard({ p: program, onClick }: { p: Program; onClick: () => void 
       <div className="flex-1 min-w-0">
         <div className="flex items-start justify-between gap-2">
           <p className="font-semibold text-foreground text-sm leading-tight">{workout.name}</p>
-          <StatusBadge status={program.status} />
+          <div className="flex items-center gap-1 shrink-0">
+            <SourceBadge source={program.source} />
+            <StatusBadge status={program.status} />
+          </div>
         </div>
         <p className="text-xs text-muted-foreground mt-0.5">{workout.category} · {workout.difficulty}</p>
 
@@ -299,12 +320,26 @@ function StatusBadge({ status }: { status: string }): React.JSX.Element {
   );
 }
 
+function SourceBadge({ source }: { source: "TRAINER" | "SELF" | "AI" }): React.JSX.Element | null {
+  if (source === "TRAINER") return null;
+  const cfg = {
+    SELF: { label: "Self", cls: "bg-blue-900/20 text-blue-400 border-blue-900/40" },
+    AI:   { label: "AI",   cls: "bg-purple-900/20 text-purple-400 border-purple-900/40" },
+  } as const;
+  const { label, cls } = cfg[source];
+  return (
+    <span className={`inline-flex items-center text-xs px-1.5 py-0.5 rounded-full border font-medium shrink-0 ${cls}`}>
+      {label}
+    </span>
+  );
+}
+
 function EmptyState({ tab }: { tab: Tab }): React.JSX.Element {
   const msgs: Record<Tab, string> = {
-    today: "No workouts scheduled for today. Check 'Upcoming' or ask your trainer.",
-    upcoming: "No upcoming programs. Your trainer will schedule workouts soon.",
-    completed: "No completed workouts yet. Finish your first session to see it here.",
-    plans: "No program plans assigned yet.",
+    today: "No workouts scheduled for today.",
+    upcoming: "No upcoming programs.",
+    completed: "No completed workouts yet.",
+    plans: "No program plans yet.",
   };
   return (
     <div className="py-16 text-center border-2 border-dashed border-border rounded-xl text-muted-foreground text-sm">
@@ -351,7 +386,8 @@ function PlanCard({ plan }: { plan: ProgramPlan }): React.JSX.Element {
               <CalendarDays className="h-3 w-3" /> {startDate}
             </span>
             <span className="flex items-center gap-1">
-              <User className="h-3 w-3" /> {plan.trainer.name}
+              <User className="h-3 w-3" />
+              {plan.trainer?.name ?? (plan.source === "AI" ? "AI Generated" : "Self-coached")}
             </span>
           </div>
         </div>

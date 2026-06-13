@@ -18,12 +18,14 @@ export class WorkoutsService {
     difficulty?: string,
     search?: string,
     reviewStatus?: string,
+    globalOnly?: boolean,
   ): Promise<PaginatedResult<Workout>> {
     const where: Record<string, unknown> = { deletedAt: null };
     if (category) where.category = category;
     if (difficulty) where.difficulty = difficulty;
     if (search) where.name = { contains: search, mode: 'insensitive' };
     if (reviewStatus) where.reviewStatus = reviewStatus as WorkoutReviewStatus;
+    if (globalOnly) where.organizationId = null;
 
     return paginate<Workout>(
       prisma.workout as Parameters<typeof paginate<Workout>>[0],
